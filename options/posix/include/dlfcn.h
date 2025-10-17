@@ -1,4 +1,8 @@
 
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+
 #ifndef _DLFCN_H
 #define _DLFCN_H
 
