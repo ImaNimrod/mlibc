@@ -285,7 +285,7 @@ namespace mlibc {
     }
 
     int sys_clock_set(int clock, time_t secs, long nanos) {
-        struct timespec ts = { .tv_sec = secs, .tv_nsecs = nanos };
+        struct timespec ts = { .tv_sec = secs, .tv_nsec = nanos };
 
         long ret = syscall2(SYS_SETTIME, clock, (uint64_t) &ts);
         if (ret < 0) {
