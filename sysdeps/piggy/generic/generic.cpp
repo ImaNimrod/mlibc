@@ -228,13 +228,13 @@ namespace mlibc {
         return sys_fcntl(fd, F_DUPFD, 0, newfd);
     }
 
-    /*
-	int sys_dup2(int fd, int flags, int newfd) {
-		(void)flags;
-		long ret;
-		return syscall(SYS_DUP2, &ret, fd, newfd);
-	}
-    */
+    int sys_dup2(int fd, int flags, int newfd) {
+        long ret = syscall3(SYS_DUP, fd, newfd, flags);
+        if (ret < 0) {
+            return -ret;
+        }
+        return 0;
+    }
 
     int sys_isatty(int fd) {
         struct winsize ws;

@@ -21,12 +21,13 @@
 #define SYS_STAT        17
 #define SYS_CHDIR       18
 #define SYS_FCNTL       19
-#define SYS_SBRK        20
-#define SYS_SLEEP       21
-#define SYS_GETTIME     22
-#define SYS_SETTIME     23
-#define SYS_UNAME       24
-#define SYS_ARCHCTL     25
+#define SYS_DUP         20
+#define SYS_SBRK        21
+#define SYS_SLEEP       22
+#define SYS_GETTIME     23
+#define SYS_SETTIME     24
+#define SYS_UNAME       25
+#define SYS_ARCHCTL     26
 
 #ifndef __MLIBC_ABI_ONLY
 
