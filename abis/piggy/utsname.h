@@ -1,5 +1,5 @@
-#ifndef _ABIBITS_UTSNAME_T_H
-#define _ABIBITS_UTSNAME_T_H
+#ifndef _ABIBITS_UTSNAME_H
+#define _ABIBITS_UTSNAME_H
 
 struct utsname {
     char sysname[64];
@@ -9,4 +9,4 @@ struct utsname {
     char machine[64];
 };
 
-#endif /* _ABIBITS_UTSNAME_T_H */
+#endif /* _ABIBITS_UTSNAME_H */

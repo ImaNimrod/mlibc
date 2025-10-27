@@ -37,15 +37,17 @@ namespace mlibc {
         return 0;
     }
 
-    /*
-	int sys_waitpid(pid_t pid, int *status, int flags, struct rusage *ru, pid_t *ret_pid) {
-		(void)ru;
-		long ret;
-		long err = syscall(SYS_WAITPID, &ret, pid, (uint64_t)status, flags);
-		*ret_pid = ret;
-		return err;
-	}
-    */
+    int sys_waitpid(pid_t pid, int *status, int flags, struct rusage *ru, pid_t *ret_pid) {
+        (void) ru;
+
+        long ret = syscall3(SYS_WAIT, pid, (long) status, flags);
+        if (ret < 0) {
+            return -ret;
+        }
+
+        *ret_pid = ret;
+        return 0;
+    }
 
     pid_t sys_getpid() {
         return syscall0(SYS_GETPID);

@@ -20,4 +20,4 @@ int archctl(int, void*);
 }
 #endif
 
-#endif /* _PIGGY_ARCH_CTLH */
+#endif /* _PIGGY_ARCHCTL_H */
