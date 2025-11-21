@@ -1,1 +1,1 @@
-../../../../abis/linux/auxv.h
+../../../../abis/piggy/auxv.h

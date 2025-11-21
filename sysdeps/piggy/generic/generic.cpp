@@ -191,6 +191,34 @@ namespace mlibc {
         return 0;
     }
 
+    int sys_ppoll(struct pollfd* fds, nfds_t count, const struct timespec* timeout, const sigset_t* sigmask, int* num_events) {
+        (void) sigmask;
+
+        long ret = syscall3(SYS_POLL, (long) fds, count, (long) timeout);
+        if (ret < 0) {
+            return -ret;
+        }
+
+        *num_events = (int) ret;
+        return 0;
+    }
+
+    int sys_poll(struct pollfd* fds, nfds_t count, int timeout, int* num_events) {
+        if (timeout == -1) {
+            return sys_ppoll(fds, count, NULL, NULL, num_events);
+        } else {
+            struct timespec ts = { .tv_sec = timeout / 1000, .tv_nsec = (timeout % 1000) * 1000000L };
+            return sys_ppoll(fds, count, &ts, NULL, num_events);
+        }
+    }
+
+    int sys_fsync(int fd) {
+        long ret = syscall1(SYS_SYNC, fd);
+        if (ret < 0) {
+            return -ret;
+        }
+        return 0;
+    }
 
     int sys_chdir(const char *path) {
         int fd;
