@@ -25,12 +25,14 @@
 #define SYS_CHDIR       21
 #define SYS_FCNTL       22
 #define SYS_DUP         23
-#define SYS_SBRK        24
-#define SYS_SLEEP       25
-#define SYS_GETTIME     26
-#define SYS_SETTIME     27
-#define SYS_UNAME       28
-#define SYS_ARCHCTL     29
+#define SYS_MMAP        24
+#define SYS_MUNMAP      25
+#define SYS_MPROTECT    26
+#define SYS_SLEEP       27
+#define SYS_GETTIME     28
+#define SYS_SETTIME     29
+#define SYS_UNAME       30
+#define SYS_ARCHCTL     31
 
 #ifndef __MLIBC_ABI_ONLY
 
@@ -75,6 +77,17 @@ static long syscall3(long n, long arg1, long arg2, long arg3) {
         : "a"(n), "D"(arg1), "S"(arg2), "d"(arg3)
         : "rcx", "r11", "memory"
     );
+    return ret;
+}
+
+static long syscall4(long n, long arg1, long arg2, long arg3, long arg4) {
+    register uint64_t r4 asm("r10") = arg4;
+
+    long ret;
+	asm volatile("syscall"
+        : "=a"(ret)
+		: "a"(n), "D"(arg1), "S"(arg2), "d"(arg3), "r"(r4)
+		: "memory", "rcx", "r11");
     return ret;
 }
 

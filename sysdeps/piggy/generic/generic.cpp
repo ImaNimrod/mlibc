@@ -359,14 +359,12 @@ namespace mlibc {
     }
 
     int sys_vm_map(void *hint, size_t size, int prot, int flags, int fd, off_t offset, void **window) {
-        (void) hint;
-        (void) prot;
-        (void) flags;
-        (void) fd;
-        (void) offset;
+        if (fd != NULL || offset != 0) {
+            mlibc::panicLogger() << "MMAPING FILES IS UNSUPPORTED" << frg::endlog;
+        }
 
-        long ret = syscall1(SYS_SBRK, size);
-        if (ret < 0) {
+        long ret = syscall4(SYS_MMAP, (long) hint, size, prot, flags);
+        if (ret < 0 && ret >= -4095) {
             return -ret;
         }
 
@@ -375,17 +373,28 @@ namespace mlibc {
     }
 
     int sys_vm_unmap(void *pointer, size_t size) {
-        (void) pointer;
-        (void) size;
+        long ret = syscall2(SYS_MUNMAP, (long) pointer, size);
+        if (ret < 0) {
+            return -ret;
+        }
         return 0;
 	}
 
+    int sys_vm_protect(void *pointer, size_t size, int prot) {
+        long ret = syscall3(SYS_MPROTECT, (long) pointer, size, prot);
+        if (ret < 0) {
+            return -ret;
+        }
+        return 0;
+    }
+
     int sys_anon_allocate(size_t size, void **pointer) {
-        return sys_vm_map(nullptr, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS,
-                -1, 0, pointer);
+        size += 4096 - (size % 4096);
+        return sys_vm_map(NULL, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, 0, 0, pointer);
     }
 
     int sys_anon_free(void *pointer, size_t size) {
+        size += 4096 - (size % 4096);
         return sys_vm_unmap(pointer, size);
     }
 

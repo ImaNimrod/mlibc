@@ -6,16 +6,15 @@
 #include <abi-bits/dev_t.h>
 #include <abi-bits/ino_t.h>
 #include <abi-bits/mode_t.h>
-#include <bits/ansi/time_t.h>
 #include <bits/ansi/timespec.h>
 #include <bits/off_t.h>
 
-#define S_IFMT  0x07000
+#define S_IFMT  0x0f000
 #define S_IFREG 0x01000
-#define S_IFDIR 0x02000
-#define S_IFBLK 0x03000
-#define S_IFCHR 0x04000
-#define S_IFLNK 0x05000
+#define S_IFDIR 0x03000
+#define S_IFBLK 0x05000
+#define S_IFCHR 0x07000
+#define S_IFLNK 0x09000
 
 #define S_IRWXU 0700
 #define S_IRUSR 0400
