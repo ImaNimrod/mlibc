@@ -28,7 +28,6 @@ namespace mlibc {
         return 0;
     }
 
-
     int sys_execve(const char *path, char *const argv[], char *const envp[]) {
         long ret = syscall3(SYS_EXEC, (long) path, (long) argv, (long) envp);
         if (ret < 0) {
@@ -105,18 +104,6 @@ namespace mlibc {
         return sys_unlinkat(AT_FDCWD, path, 0);
     }
 
-    int sys_mount(const char *source, const char *target, const char *fstype, unsigned long flags, const void *data) {
-        (void) flags;
-        (void) data;
-
-        long ret = syscall3(SYS_MOUNT, (long) source, (long) target, (long) fstype);
-        if (ret < 0) {
-            return -ret;
-        }
-        return 0;
-    }
-
-
     int sys_close(int fd) {
         long ret = syscall1(SYS_CLOSE, fd);
         if (ret < 0) {
@@ -124,7 +111,6 @@ namespace mlibc {
         }
         return 0;
     }
-
 
     int sys_read(int fd, void *buff, size_t count, ssize_t *bytes_read) {
         long ret = syscall3(SYS_READ, fd, (long) buff, count);
@@ -166,22 +152,29 @@ namespace mlibc {
         return 0;
     }
 
-    /*
 	int sys_stat(fsfd_target fsfdt, int fd, const char *path, int flags, struct stat *statbuf) {
-		long ret;
-		switch (fsfdt) {
-			case fsfd_target::path:
-				return syscall(SYS_FSTATAT, &ret, AT_FDCWD, (uint64_t)path, (uint64_t)statbuf, flags);
-			case fsfd_target::fd:
-				return syscall(SYS_FSTAT, &ret, fd, (uint64_t)statbuf);
-			case fsfd_target::fd_path:
-				return syscall(SYS_FSTATAT, &ret, fd, (uint64_t)path, (uint64_t)statbuf, flags);
-			default:
-				mlibc::infoLogger() << "mlibc: stat: Unknown fsfd_target: " << (int)fsfdt << frg::endlog;
-				return ENOSYS;
-		}
+        switch (fsfdt) {
+            case fsfd_target::fd:
+                flags |= AT_EMPTY_PATH;
+                path = "";
+                break;
+            case fsfd_target::fd_path:
+                break;
+            case fsfd_target::path:
+                fd = AT_FDCWD;
+                break;
+            default:
+                mlibc::infoLogger() << "mlibc: stat: Unknown fsfd_target: " << (int) fsfdt << frg::endlog;
+                return ENOSYS;
+        }
+
+        long ret = syscall4(SYS_STAT, fd, (long) path, (long) statbuf, flags);
+        if (ret < 0) {
+            return -ret;
+        }
+
+        return 0;
 	}
-    */
 
     int sys_ftruncate(int fd, size_t size) {
         long ret = syscall2(SYS_TRUNCATE, fd, size);
@@ -220,10 +213,27 @@ namespace mlibc {
         return 0;
     }
 
+    int sys_mount(const char *source, const char *target, const char *fstype) {
+        long ret = syscall3(SYS_MOUNT, (long) source, (long) target, (long) fstype);
+        if (ret < 0) {
+            return -ret;
+        }
+        return 0;
+    }
+
+    int sys_umount(const char *target) {
+        long ret = syscall1(SYS_UNMOUNT, (long) target);
+        if (ret < 0) {
+            return -ret;
+        }
+        return 0;
+    }
+
     int sys_chdir(const char *path) {
         int fd;
+
         int ret = sys_open_dir(path, &fd);
-        if (ret < 0) {
+        if (ret != 0) {
             return ret;
         }
 
@@ -255,7 +265,14 @@ namespace mlibc {
 
     int sys_dup(int fd, int flags, int *newfd) {
         (void) flags;
-        return sys_fcntl(fd, F_DUPFD, 0, newfd);
+
+        long ret = syscall3(SYS_FCNTL, fd, F_DUPFD, 0);
+        if (ret < 0) {
+            return -ret;
+        }
+
+        *newfd = ret;
+        return 0;
     }
 
     int sys_dup2(int fd, int flags, int newfd) {
@@ -359,9 +376,8 @@ namespace mlibc {
     }
 
     int sys_vm_map(void *hint, size_t size, int prot, int flags, int fd, off_t offset, void **window) {
-        if (fd != NULL || offset != 0) {
-            mlibc::panicLogger() << "MMAPING FILES IS UNSUPPORTED" << frg::endlog;
-        }
+        (void) fd;
+        (void) offset;
 
         long ret = syscall4(SYS_MMAP, (long) hint, size, prot, flags);
         if (ret < 0 && ret >= -4095) {

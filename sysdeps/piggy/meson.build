@@ -12,6 +12,7 @@ rtld_sources += files(
 libc_sources += files(
 	'generic/entry.cpp',
 	'generic/generic.cpp',
+	'generic/sys-mount.cpp',
 )
 
 if not no_headers
@@ -62,6 +63,8 @@ if not no_headers
         subdir: 'abi-bits',
 		follow_symlinks: true,
 	)
+
+    install_headers('include/sys/mount.h', subdir: 'sys')
 endif
 
 if not headers_only

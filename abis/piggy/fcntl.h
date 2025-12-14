@@ -27,6 +27,8 @@
 
 #define AT_FDCWD -100
 
+#define AT_EMPTY_PATH   (1 << 0)
+
 /* NOT IMPLEMENTED BUT NEEDED TO COMPILE */
 #define O_NOCTTY    0
 #define O_NOFOLLOW  0
@@ -47,6 +49,5 @@
 #define AT_SYMLINK_FOLLOW   0
 #define AT_EACCESS          0
 #define AT_NO_AUTOMOUNT     0
-#define AT_EMPTY_PATH       0
 
 #endif /* _ABIBITS_FCNTL_H */
