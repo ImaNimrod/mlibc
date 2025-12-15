@@ -7,8 +7,7 @@ extern "C" {
 
 #ifndef __MLIBC_ABI_ONLY
 
-int mount(const char *__source, const char *__target,
-		const char *__fstype, unsigned long __flags, const void *__data);
+int mount(const char *__source, const char *__target, const char *__fstype);
 int umount(const char *__target);
 
 #endif /* !__MLIBC_ABI_ONLY */
