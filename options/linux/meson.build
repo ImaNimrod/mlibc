@@ -3,8 +3,8 @@ if not linux_option
 	subdir_done()
 endif
 libc_sources += files(
+	'generic/fcntl.cpp',
 	'generic/mntent.cpp',
-	'generic/sys-epoll.cpp',
 	'generic/sys-inotify.cpp',
 	'generic/sys-mount.cpp',
 	'generic/sys-prctl.cpp',
@@ -12,7 +12,6 @@ libc_sources += files(
 	'generic/sys-random.cpp',
 	'generic/sys-sendfile.cpp',
 	'generic/sys-signalfd.cpp',
-	'generic/sys-timerfd.cpp',
 	'generic/sys-uio.cpp',
 	'generic/sys-eventfd.cpp',
 	'generic/sys-reboot.cpp',
@@ -66,7 +65,6 @@ if not no_headers
 		subdir: 'scsi'
 	)
 	install_headers(
-		'include/sys/epoll.h',
 		'include/sys/inotify.h',
 		'include/sys/mount.h',
 		'include/sys/prctl.h',
@@ -75,7 +73,6 @@ if not no_headers
 		'include/sys/sendfile.h',
 		'include/sys/signalfd.h',
 		'include/sys/sysmacros.h',
-		'include/sys/timerfd.h',
 		'include/sys/eventfd.h',
 		'include/sys/reboot.h',
 		'include/sys/fsuid.h',

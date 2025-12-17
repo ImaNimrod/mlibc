@@ -1,9 +1,7 @@
 #include <abi-bits/limits.h>
 #include <abi-bits/pid_t.h>
-#include <asm/ioctls.h>
 #include <errno.h>
 #include <frg/logging.hpp>
-#include <menix/power.hpp>
 #include <menix/syscall.hpp>
 #include <mlibc/debug.hpp>
 #include <mlibc/posix-sysdeps.hpp>
@@ -403,7 +401,7 @@ int sys_fcntl(int fd, int request, va_list args, int *result) {
 }
 
 int sys_ttyname(int fd, char *buf, size_t size) {
-	if (size >= NAME_MAX) {
+	if (size >= __MLIBC_NAME_MAX) {
 		mlibc::panicLogger() << "ttyname size too small" << frg::endlog;
 		__builtin_unreachable();
 	}
