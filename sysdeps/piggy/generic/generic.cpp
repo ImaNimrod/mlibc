@@ -213,6 +213,16 @@ namespace mlibc {
         return 0;
     }
 
+    int sys_read_entries(int handle, void *buffer, size_t max_size, size_t *bytes_read) {
+        long ret = syscall3(SYS_GETDENTS, handle, (long) buffer, max_size);
+        if (ret < 0) {
+            return -ret;
+        }
+
+        *bytes_read = ret;
+        return 0;
+    }
+
     int sys_mount(const char *source, const char *target, const char *fstype) {
         long ret = syscall3(SYS_MOUNT, (long) source, (long) target, (long) fstype);
         if (ret < 0) {
