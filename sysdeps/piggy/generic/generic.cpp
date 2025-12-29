@@ -316,6 +316,14 @@ namespace mlibc {
         return sys_ioctl(fd, TCSETS, (void*) attr, &res);
     }
 
+    int sys_chroot(const char *path) {
+        long ret = syscall1(SYS_CHROOT, (long) path);
+        if (ret < 0) {
+            return -ret;
+        }
+        return 0;
+    }
+
     int sys_sleep(time_t *secs, long *nanos) {
         struct timespec ts;
         ts.tv_sec = *secs;
