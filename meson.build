@@ -303,6 +303,9 @@ glibc_option = get_option('glibc_option').require(sysdep_supported_options.get('
 bsd_option = get_option('bsd_option').require(sysdep_supported_options.get('bsd', false)).allowed()
 linux_epoll_option = sysdep_supported_options.get('linux-epoll', linux_option)
 linux_timerfd_option = sysdep_supported_options.get('linux-timerfd', linux_option)
+linux_signalfd_option = sysdep_supported_options.get('linux-signalfd', linux_option)
+linux_eventfd_option = sysdep_supported_options.get('linux-eventfd', linux_option)
+linux_reboot_option = sysdep_supported_options.get('linux-reboot', linux_option)
 
 mlibc_conf.set10('__MLIBC_POSIX_OPTION', posix_option)
 mlibc_conf.set10('__MLIBC_LINUX_OPTION', linux_option)
@@ -310,6 +313,9 @@ mlibc_conf.set10('__MLIBC_GLIBC_OPTION', glibc_option)
 mlibc_conf.set10('__MLIBC_BSD_OPTION', bsd_option)
 mlibc_conf.set10('__MLIBC_LINUX_EPOLL_OPTION', linux_epoll_option)
 mlibc_conf.set10('__MLIBC_LINUX_TIMERFD_OPTION', linux_timerfd_option)
+mlibc_conf.set10('__MLIBC_LINUX_SIGNALFD_OPTION', linux_signalfd_option)
+mlibc_conf.set10('__MLIBC_LINUX_EVENTFD_OPTION', linux_eventfd_option)
+mlibc_conf.set10('__MLIBC_LINUX_REBOOT_OPTION', linux_reboot_option)
 mlibc_conf.set10('__MLIBC_SYSDEP_HAS_BITS_SYSCALL_H', provides_bits_syscall_h)
 
 rtld_include_dirs += include_directories('options/ansi/include')
@@ -382,6 +388,21 @@ if linux_timerfd_option
 	libc_include_dirs += include_directories('options/linux-timerfd/include')
 endif
 
+if linux_signalfd_option
+	rtld_include_dirs += include_directories('options/linux-signalfd/include')
+	libc_include_dirs += include_directories('options/linux-signalfd/include')
+endif
+
+if linux_eventfd_option
+	rtld_include_dirs += include_directories('options/linux-eventfd/include')
+	libc_include_dirs += include_directories('options/linux-eventfd/include')
+endif
+
+if linux_reboot_option
+	rtld_include_dirs += include_directories('options/linux-reboot/include')
+	libc_include_dirs += include_directories('options/linux-reboot/include')
+endif
+
 rtld_include_dirs += include_directories('options/elf/include')
 libc_include_dirs += include_directories('options/elf/include')
 libc_include_dirs += include_directories('.')
@@ -407,6 +428,7 @@ internal_sources = [
 	'options/internal/generic/debug.cpp',
 	'options/internal/generic/ensure.cpp',
 	'options/internal/generic/essential.cpp',
+	'options/internal/generic/exiting.cpp',
 	'options/internal/generic/frigg.cpp',
 	'options/internal/generic/getopt.cpp',
 	'options/internal/generic/global-config.cpp',
@@ -419,6 +441,8 @@ internal_sources = [
 	'options/internal/generic/threads.cpp',
 	'options/internal/generic/search.cpp',
 	'options/internal/generic/stdlib.cpp',
+	'options/internal/generic/time.cpp',
+	'options/internal/generic/wide.cpp',
 	'options/internal/gcc/stack_protector.cpp',
 	'options/internal/gcc/guard-abi.cpp',
 	'options/internal/gcc-extra/cxxabi.cpp',
@@ -501,6 +525,9 @@ subdir('options/linux')
 subdir('options/bsd')
 subdir('options/linux-epoll')
 subdir('options/linux-timerfd')
+subdir('options/linux-signalfd')
+subdir('options/linux-eventfd')
+subdir('options/linux-reboot')
 
 rtlib_deps = []
 

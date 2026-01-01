@@ -1,16 +1,16 @@
-#include <stdio.h>
+#include <dirent.h>
 #include <errno.h>
+#include <limits.h>
+#include <pwd.h>
 #include <stdarg.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/resource.h>
-#include <unistd.h>
-#include <dirent.h>
-#include <limits.h>
-#include <termios.h>
-#include <stdio.h>
-#include <pwd.h>
 #include <sys/stat.h>
+#include <termios.h>
+#include <unistd.h>
+#include <utmpx.h>
 
 #include <bits/ensure.h>
 #include <mlibc-config.h>
@@ -20,6 +20,7 @@
 #include <mlibc/getopt.hpp>
 #include <mlibc/posix-sysdeps.hpp>
 #include <mlibc/thread.hpp>
+#include <mlibc/utmp.hpp>
 
 #if __MLIBC_BSD_OPTION
 #include <mlibc/bsd-sysdeps.hpp>
@@ -267,9 +268,17 @@ int fexecve(int, char *const [], char *const []) {
 	return errno = ENOSYS, -1;
 }
 
-long fpathconf(int, int) {
-	mlibc::infoLogger() << "mlibc: " << __FUNCTION__ << " not implemented!" << frg::endlog;
-	return errno = ENOSYS, -1;
+long fpathconf(int, int name) {
+	switch (name) {
+	case _PC_NAME_MAX:
+		return NAME_MAX;
+	case _PC_FILESIZEBITS:
+		return FILESIZEBITS;
+	default:
+		mlibc::infoLogger() << "missing fpathconf() entry " << name << frg::endlog;
+		errno = EINVAL;
+		return -1;
+	}
 }
 
 int fsync(int fd) {
@@ -476,14 +485,50 @@ int sethostname(const char *buffer, size_t bufsize) {
 	return 0;
 }
 
-// Code taken from musl
+namespace {
+
+char getloginBuf[LOGIN_NAME_MAX];
+
+} // namespace
+
 char *getlogin(void) {
-	return getenv("LOGNAME");
+	if (int e = getlogin_r(getloginBuf, sizeof(getloginBuf)); e) {
+		errno = e;
+		return nullptr;
+	}
+	return getloginBuf;
 }
 
-int getlogin_r(char *, size_t) {
-	mlibc::infoLogger() << "mlibc: " << __FUNCTION__ << " not implemented!" << frg::endlog;
-	return errno = ENOSYS, -1;
+int getlogin_r(char *name, size_t name_len) {
+	if(mlibc::sys_getlogin_r) {
+		int e = mlibc::sys_getlogin_r(name, name_len);
+		if (e == 0) {
+			return 0;
+		} else if (e && e != EINVAL) {
+			return e;
+		}
+	}
+
+	char ttypath[2 * NAME_MAX + 3];
+	if (int e = ttyname_r(0, ttypath, sizeof(ttypath)); e)
+		return e;
+
+	struct utmpx line;
+	strlcpy(line.ut_line, ttypath + 5, sizeof(line.ut_line));
+
+	struct utmpx utx;
+	if (!mlibc::getutxline_r(&line, &utx)) {
+		if (errno == ESRCH)
+			return ENOENT;
+		return errno;
+	}
+
+	size_t needed = strnlen(utx.ut_user, __UT_NAMESIZE) + 1;
+	if (needed > name_len)
+		return ERANGE;
+
+	strlcpy(name, utx.ut_user, needed);
+	return 0;
 }
 
 int getopt(int argc, char *const argv[], const char *optstring) {
@@ -593,6 +638,8 @@ long pathconf(const char *, int name) {
 	switch (name) {
 	case _PC_NAME_MAX:
 		return NAME_MAX;
+	case _PC_FILESIZEBITS:
+		return FILESIZEBITS;
 	default:
 		mlibc::infoLogger() << "missing pathconf() entry " << name << frg::endlog;
 		errno = EINVAL;
@@ -832,6 +879,8 @@ long sysconf(int number) {
 		case _SC_OPEN_MAX:
 			mlibc::infoLogger() << "\e[31mmlibc: sysconf(_SC_OPEN_MAX) returns fallback value 256\e[39m" << frg::endlog;
 			return 256;
+		case _SC_COLL_WEIGHTS_MAX:
+			return COLL_WEIGHTS_MAX;
 		case _SC_TZNAME_MAX:
 			return -1;
 		case _SC_PHYS_PAGES:
@@ -1067,8 +1116,8 @@ pid_t gettid(void) {
 
 int getentropy(void *buffer, size_t length) {
 	MLIBC_CHECK_OR_ENOSYS(mlibc::sys_getentropy, -1);
-	if(length > 256) {
-		errno = EIO;
+	if(length > GETENTROPY_MAX) {
+		errno = EINVAL;
 		return -1;
 	}
 	if(int e = mlibc::sys_getentropy(buffer, length); e) {

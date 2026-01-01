@@ -159,6 +159,8 @@ int sys_vm_unmap(void *pointer, size_t size);
 [[gnu::weak]] int sys_tcflow(int, int);
 [[gnu::weak]] int sys_tcflush(int fd, int queue);
 [[gnu::weak]] int sys_tcdrain(int);
+[[gnu::weak]] int sys_tcgetwinsize(int fd, struct winsize *winsz);
+[[gnu::weak]] int sys_tcsetwinsize(int fd, const struct winsize *winsz);
 [[gnu::weak]] int sys_pipe(int *fds, int flags);
 [[gnu::weak]] int sys_socketpair(int domain, int type_and_flags, int proto, int *fds);
 [[gnu::weak]] int sys_poll(struct pollfd *fds, nfds_t count, int timeout, int *num_events);
@@ -225,6 +227,8 @@ int sys_vm_unmap(void *pointer, size_t size);
 [[gnu::weak]] int sys_getresgid(gid_t *rgid, gid_t *egid, gid_t *sgid);
 [[gnu::weak]] int sys_setreuid(uid_t ruid, uid_t euid);
 [[gnu::weak]] int sys_setregid(gid_t rgid, gid_t egid);
+
+[[gnu::weak]] int sys_getlogin_r(char *name, size_t name_len);
 
 [[gnu::weak]] int sys_if_indextoname(unsigned int index, char *name);
 [[gnu::weak]] int sys_if_nametoindex(const char *name, unsigned int *ret);
