@@ -223,22 +223,6 @@ namespace mlibc {
         return 0;
     }
 
-    int sys_mount(const char *source, const char *target, const char *fstype) {
-        long ret = syscall3(SYS_MOUNT, (long) source, (long) target, (long) fstype);
-        if (ret < 0) {
-            return -ret;
-        }
-        return 0;
-    }
-
-    int sys_umount(const char *target) {
-        long ret = syscall1(SYS_UNMOUNT, (long) target);
-        if (ret < 0) {
-            return -ret;
-        }
-        return 0;
-    }
-
     int sys_chdir(const char *path) {
         int fd;
 
@@ -377,16 +361,16 @@ namespace mlibc {
         return 0;
     }
 
-    int sys_tcb_set(void* pointer) {
-        long ret = syscall2(SYS_ARCHCTL, ARCHCTL_SET_FSBASE, (long) pointer);
+    int sys_uname(struct utsname *buf) {
+        long ret = syscall1(SYS_UNAME, (long) buf);
         if (ret < 0) {
             return -ret;
         }
         return 0;
     }
 
-    int sys_uname(struct utsname *buf) {
-        long ret = syscall1(SYS_UNAME, (long) buf);
+    int sys_tcb_set(void* pointer) {
+        long ret = syscall2(SYS_ARCHCTL, ARCHCTL_SET_FSBASE, (long) pointer);
         if (ret < 0) {
             return -ret;
         }

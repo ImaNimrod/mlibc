@@ -12,7 +12,7 @@ rtld_sources += files(
 libc_sources += files(
 	'generic/entry.cpp',
 	'generic/generic.cpp',
-	'generic/sys-mount.cpp',
+	'generic/piggy.cpp',
 )
 
 if not no_headers
@@ -70,7 +70,13 @@ if not no_headers
 		follow_symlinks: true,
 	)
 
-    install_headers('include/sys/mount.h', subdir: 'sys')
+    install_headers(
+      'include/piggy/archctl.h',
+      'include/piggy/mount.h',
+      'include/piggy/poweroff.h',
+      'include/piggy/syscall.h',
+      subdir: 'piggy',
+    )
 endif
 
 if not headers_only

@@ -12,7 +12,7 @@ extern "C" {
 
 #ifndef __MLIBC_ABI_ONLY
 
-int archctl(int, void*);
+int archctl(int op, void *arg);
 
 #endif /* !__MLIBC_ABI_ONLY */
 

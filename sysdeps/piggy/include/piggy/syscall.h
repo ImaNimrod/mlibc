@@ -34,7 +34,8 @@
 #define SYS_GETTIME     30
 #define SYS_SETTIME     31
 #define SYS_UNAME       32
-#define SYS_ARCHCTL     33
+#define SYS_POWEROFF    33
+#define SYS_ARCHCTL     34
 
 #ifndef __MLIBC_ABI_ONLY
 
@@ -83,7 +84,7 @@ static long syscall3(long n, long arg1, long arg2, long arg3) {
 }
 
 static long syscall4(long n, long arg1, long arg2, long arg3, long arg4) {
-    register uint64_t r4 asm("r10") = arg4;
+    register long r4 asm("r10") = arg4;
 
     long ret;
 	asm volatile("syscall"
