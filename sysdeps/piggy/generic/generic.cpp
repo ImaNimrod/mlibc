@@ -52,9 +52,13 @@ namespace mlibc {
         return syscall0(SYS_GETPID);
     }
 
-	pid_t sys_getppid() {
+    pid_t sys_getppid() {
         return syscall0(SYS_GETPPID);
-	}
+    }
+
+    pid_t sys_gettid() {
+        return syscall0(SYS_GETTID);
+    }
 
     int sys_openat(int dirfd, const char *path, int flags, mode_t mode, int *fd) {
         (void) mode;
@@ -298,6 +302,16 @@ namespace mlibc {
 
         int res;
         return sys_ioctl(fd, TCSETS, (void*) attr, &res);
+    }
+
+    int sys_tcgetwinsize(int fd, struct winsize *winsz) {
+        int res;
+        return sys_ioctl(fd, TIOCGWINSZ, (void*) winsz, &res);
+    }
+
+    int sys_tcsetwinsize(int fd, const struct winsize *winsz) {
+        int res;
+        return sys_ioctl(fd, TIOCSWINSZ, (void*) winsz, &res);
     }
 
     int sys_chroot(const char *path) {
