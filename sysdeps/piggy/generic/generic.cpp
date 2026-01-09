@@ -188,6 +188,19 @@ namespace mlibc {
         return 0;
     }
 
+    int sys_utimensat(int dirfd, const char *pathname, const struct timespec times[2], int flags) {
+        if (pathname == NULL) {
+            flags |= AT_EMPTY_PATH;
+        }
+
+        long ret = syscall4(SYS_UTIME, dirfd, (long) pathname, (long) times, flags);
+        if (ret < 0) {
+            return -ret;
+        }
+
+        return 0;
+    }
+
     int sys_ppoll(struct pollfd* fds, nfds_t count, const struct timespec* timeout, const sigset_t* sigmask, int* num_events) {
         (void) sigmask;
 
