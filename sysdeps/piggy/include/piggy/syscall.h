@@ -37,8 +37,9 @@
 #define SYS_GETTIME     33
 #define SYS_SETTIME     34
 #define SYS_UNAME       35
-#define SYS_POWEROFF    36
-#define SYS_ARCHCTL     37
+#define SYS_FUTEX       36
+#define SYS_POWEROFF    37
+#define SYS_ARCHCTL     38
 
 #ifndef __MLIBC_ABI_ONLY
 

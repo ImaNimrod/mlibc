@@ -370,21 +370,51 @@ namespace mlibc {
         return 0;
     }
 
+#ifndef MLIBC_BUILDING_RTLD
+
+    extern "C" void __mlibc_thread_entry();
+
+    int sys_clone(void *tcb, pid_t *pid_out, void *stack) {
+        (void)tcb;
+
+        long ret = syscall2(SYS_THREADNEW, (long) __mlibc_thread_entry, (long) stack);
+        if (ret < 0) {
+            return -ret;
+        }
+
+        *pid_out = ret;
+        return 0;
+    }
+
+    [[noreturn]] void sys_thread_exit() {
+        syscall0(SYS_THREADEXIT);
+        __builtin_unreachable();
+    }
+
+#endif
+
     int sys_futex_tid() {
         return syscall0(SYS_GETTID);
     }
 
+    #define FUTEX_WAIT 0
+    #define FUTEX_WAKE 1
+
     int sys_futex_wait(int *pointer, int expected, const struct timespec *time) {
-        (void) pointer;
-        (void) expected;
         (void) time;
-        sys_libc_log("futex_wait\n");
+
+        long ret = syscall3(SYS_FUTEX, (long) pointer, FUTEX_WAIT, expected);
+        if (ret < 0) {
+            return -ret;
+        }
         return 0;
     }
 
     int sys_futex_wake(int *pointer) {
-        (void) pointer;
-        sys_libc_log("futex_wake\n");
+        long ret = syscall2(SYS_FUTEX, (long) pointer, FUTEX_WAKE);
+        if (ret < 0) {
+            return -ret;
+        }
         return 0;
     }
 
