@@ -335,6 +335,14 @@ namespace mlibc {
         return 0;
     }
 
+    int sys_pipe(int *fds, int flags) {
+        long ret = syscall2(SYS_PIPE, (long) fds, flags);
+        if (ret < 0) {
+            return -ret;
+        }
+        return 0;
+    }
+
     int sys_sleep(time_t *secs, long *nanos) {
         struct timespec ts;
         ts.tv_sec = *secs;
@@ -410,8 +418,8 @@ namespace mlibc {
         return 0;
     }
 
-    int sys_futex_wake(int *pointer) {
-        long ret = syscall2(SYS_FUTEX, (long) pointer, FUTEX_WAKE);
+    int sys_futex_wake(int *pointer, bool all) {
+        long ret = syscall3(SYS_FUTEX, (long) pointer, FUTEX_WAKE, all ? UINT32_MAX : 1);
         if (ret < 0) {
             return -ret;
         }
