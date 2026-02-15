@@ -5,6 +5,7 @@
 #include <wchar.h>
 
 #include <bits/ensure.h>
+#include <mlibc/strtofp.hpp>
 #include <mlibc/strtol.hpp>
 
 // memset() is defined in options/internals.
@@ -232,9 +233,17 @@ char *strchrnul(const char *s, int c) {
 	return const_cast<char *>(s + i);
 }
 
-double wcstod(const wchar_t *__restrict, wchar_t **__restrict) { MLIBC_STUB_BODY; }
-float wcstof(const wchar_t *__restrict, wchar_t **__restrict) { MLIBC_STUB_BODY; }
-long double wcstold(const wchar_t *__restrict, wchar_t **__restrict) { MLIBC_STUB_BODY; }
+double wcstod(const wchar_t *__restrict string, wchar_t **__restrict end) {
+	return mlibc::strtofp<double, wchar_t>(string, end, mlibc::getActiveLocale());
+}
+
+float wcstof(const wchar_t *__restrict string, wchar_t **__restrict end) {
+	return mlibc::strtofp<float, wchar_t>(string, end, mlibc::getActiveLocale());
+}
+
+long double wcstold(const wchar_t *__restrict string, wchar_t **__restrict end) {
+	return mlibc::strtofp<long double, wchar_t>(string, end, mlibc::getActiveLocale());
+}
 
 long wcstol(const wchar_t *__restrict nptr, wchar_t **__restrict endptr, int base)  {
 	return mlibc::stringToInteger<long, wchar_t>(nptr, endptr, base);
@@ -296,14 +305,27 @@ int wcscmp(const wchar_t *l, const wchar_t *r) {
 	return *l - *r;
 }
 
-int wcscoll(const wchar_t *, const wchar_t *) { MLIBC_STUB_BODY; }
+int wcscoll(const wchar_t *l, const wchar_t *r) {
+	// TODO: fix once we implement collation
+	return wcscmp(l, r);
+}
 
 int wcsncmp(const wchar_t *l, const wchar_t *r, size_t n) {
 	for(; n && *l == *r && *l && *r; n--, l++, r++);
 	return n ? (*l < *r ? -1 : *l > *r) : 0;
 }
 
-size_t wcsxfrm(wchar_t *__restrict, const wchar_t *__restrict, size_t) { MLIBC_STUB_BODY; }
+size_t wcsxfrm(wchar_t *__restrict dest, const wchar_t *__restrict src, size_t n) {
+	// TODO: fix once we implement collation
+	// NOTE: This might not work for non ANSI charsets.
+	size_t l = wcslen(src);
+
+	// man page: If the value returned is n or more, the contents of dest are indeterminate.
+	if(n > l)
+		wcsncpy(dest, src, n);
+
+	return l;
+}
 
 int wmemcmp(const wchar_t *a, const wchar_t *b, size_t size) {
 	for(size_t i = 0; i < size; i++) {
@@ -424,6 +446,7 @@ wchar_t *wmemset(wchar_t *d, wchar_t c, size_t n) {
 char *strerror(int e) {
 	const char *s;
 	switch(e) {
+	case 0: s = "Success"; break;
 	case EAGAIN: s = "Operation would block (EAGAIN)"; break;
 	case EACCES: s = "Access denied (EACCESS)"; break;
 	case EBADF:  s = "Bad file descriptor (EBADF)"; break;
@@ -549,7 +572,7 @@ char *strerror(int e) {
 
 extern "C" char *__gnu_strerror_r(int e, char *buffer, size_t bufsz) {
 	auto s = strerror(e);
-	strncpy(buffer, s, bufsz);
+	mlibc::strlcpy(buffer, s, bufsz);
 	return buffer;
 }
 
@@ -557,9 +580,10 @@ extern "C" char *__gnu_strerror_r(int e, char *buffer, size_t bufsz) {
 
 int strerror_r(int e, char *buffer, size_t bufsz) {
 	auto s = strerror(e);
-	strncpy(buffer, s, bufsz);
+	// POSIX: implementations are encouraged to null terminate strerrbuf when failing with
+	// [ERANGE] for any size other than bufsz of zero
 	// Note that strerror_r does not set errno on error!
-	if(strlen(s) >= bufsz)
+	if(mlibc::strlcpy(buffer, s, bufsz) >= bufsz)
 		return ERANGE;
 	return 0;
 }

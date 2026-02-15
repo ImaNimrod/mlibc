@@ -276,6 +276,10 @@ void abstract_file::purge() {
 	__unget_ptr = __buffer_ptr;
 }
 
+int abstract_file::post_flush() {
+	return 0;
+}
+
 int abstract_file::flush() {
 	if (__dirty_end != __dirty_begin) {
 		if (int e = _write_back(); e)
@@ -285,7 +289,7 @@ int abstract_file::flush() {
 	if (int e = _save_pos(); e)
 		return e;
 	purge();
-	return 0;
+	return post_flush();
 }
 
 int abstract_file::tell(off_t *current_offset) {
@@ -323,6 +327,17 @@ int abstract_file::seek(off_t offset, int whence) {
 	purge();
 
 	return 0;
+}
+
+bool abstract_file::check_orientation(stream_orientation orientation) {
+	if (_orientation == orientation) {
+		return true;
+	} else if (_orientation == stream_orientation::none) {
+		_orientation = orientation;
+		return true;
+	} else {
+		return false;
+	}
 }
 
 int abstract_file::_init_type() {
@@ -468,6 +483,7 @@ int fd_file::reopen(const char *path, const char *mode) {
 	_reset();
 	_fd = fd;
 	_orientation = stream_orientation::none;
+	_mbstate = {};
 
 	if(mode_flags & O_APPEND) {
 		seek(0, SEEK_END);

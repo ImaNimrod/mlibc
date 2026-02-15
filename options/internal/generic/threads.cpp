@@ -51,7 +51,7 @@ int thread_once(__mlibc_once *once, void (*func) (void)) {
 
 			// unlock the mutex.
 			__atomic_exchange_n(&once->__mlibc_done, onceComplete, __ATOMIC_RELEASE);
-			if(int e = mlibc::sys_futex_wake((int *)&once->__mlibc_done); e)
+			if(int e = mlibc::sys_futex_wake((int *)&once->__mlibc_done, true); e)
 				__ensure(!"sys_futex_wake() failed");
 			return 0;
 		}else{
@@ -108,7 +108,7 @@ int thread_create(struct __mlibc_thread_data **__restrict thread, const struct _
 	*thread = reinterpret_cast<struct __mlibc_thread_data *>(new_tcb);
 
 	__atomic_store_n(&new_tcb->tid, tid, __ATOMIC_RELAXED);
-	mlibc::sys_futex_wake(&new_tcb->tid);
+	mlibc::sys_futex_wake(&new_tcb->tid, true);
 
 	return 0;
 }
@@ -197,7 +197,7 @@ __attribute__ ((__noreturn__)) void thread_exit(thread_exit_return ret_val) {
 		self->returnValue.intVal = ret_val.integer;
 
 	__atomic_store_n(&self->didExit, 1, __ATOMIC_RELEASE);
-	sys_futex_wake(&self->didExit);
+	sys_futex_wake(&self->didExit, true);
 
 	// TODO: clean up thread resources when we are detached.
 
@@ -218,6 +218,7 @@ int thread_attr_init(struct __mlibc_threadattr *attr) {
 
 static constexpr unsigned int mutexRecursive = 1;
 static constexpr unsigned int mutexErrorCheck = 2;
+static constexpr unsigned int mutexShared = 4;
 
 // TODO: either use uint32_t or determine the bit based on sizeof(int).
 static constexpr unsigned int mutex_owner_mask = (static_cast<uint32_t>(1) << 30) - 1;
@@ -243,10 +244,12 @@ int thread_mutex_init(struct __mlibc_mutex *__restrict mutex,
 		__ensure(type == __MLIBC_THREAD_MUTEX_NORMAL);
 	}
 
+	if (pshared == __MLIBC_THREAD_PROCESS_SHARED)
+		mutex->__mlibc_flags |= mutexShared;
+
 	// TODO: Other values aren't supported yet.
 	__ensure(robust == __MLIBC_THREAD_MUTEX_STALLED);
 	__ensure(protocol == __MLIBC_THREAD_PRIO_NONE);
-	__ensure(pshared == __MLIBC_THREAD_PROCESS_PRIVATE);
 
 	return 0;
 }
@@ -375,7 +378,7 @@ int thread_mutex_unlock(struct __mlibc_mutex *mutex) {
 	if(state & mutex_waiters_bit) {
 		// Wake the futex if there were waiters. Since the mutex might not exist at this location
 		// anymore, we must conservatively ignore EACCES and EINVAL which may occur as a result.
-		int e = mlibc::sys_futex_wake((int *)&mutex->__mlibc_state);
+		int e = mlibc::sys_futex_wake((int *)&mutex->__mlibc_state, true);
 		__ensure(e >= 0 || e == EACCES || e == EINVAL);
 	}
 
@@ -425,9 +428,17 @@ int thread_cond_destroy(struct __mlibc_cond *) {
 	return 0;
 }
 
+int thread_cond_signal(struct __mlibc_cond *cond) {
+	__atomic_fetch_add(&cond->__mlibc_seq, 1, __ATOMIC_RELEASE);
+	if(int e = mlibc::sys_futex_wake((int *)&cond->__mlibc_seq, false); e)
+		__ensure(!"sys_futex_wake() failed");
+
+	return 0;
+}
+
 int thread_cond_broadcast(struct __mlibc_cond *cond) {
 	__atomic_fetch_add(&cond->__mlibc_seq, 1, __ATOMIC_RELEASE);
-	if(int e = mlibc::sys_futex_wake((int *)&cond->__mlibc_seq); e)
+	if(int e = mlibc::sys_futex_wake((int *)&cond->__mlibc_seq, true); e)
 		__ensure(!"sys_futex_wake() failed");
 
 	return 0;
@@ -435,9 +446,6 @@ int thread_cond_broadcast(struct __mlibc_cond *cond) {
 
 int thread_cond_timedwait(struct __mlibc_cond *__restrict cond, __mlibc_mutex *__restrict mutex,
 		const struct timespec *__restrict abstime, clockid_t clockid) {
-	// TODO: pshared isn't supported yet.
-	__ensure(cond->__mlibc_flags == 0);
-
 	constexpr long nanos_per_second = 1'000'000'000;
 	if (abstime && (abstime->tv_nsec < 0 || abstime->tv_nsec >= nanos_per_second))
 		return EINVAL;

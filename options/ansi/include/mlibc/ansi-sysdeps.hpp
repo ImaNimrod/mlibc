@@ -27,7 +27,7 @@ namespace [[gnu::visibility("hidden")]] mlibc {
 [[gnu::weak]] int sys_clone(void *tcb, pid_t *pid_out, void *stack);
 
 int sys_futex_wait(int *pointer, int expected, const struct timespec *time);
-int sys_futex_wake(int *pointer);
+int sys_futex_wake(int *pointer, bool all);
 
 int sys_open(const char *pathname, int flags, mode_t mode, int *fd);
 [[gnu::weak]] int sys_flock(int fd, int options);
@@ -54,7 +54,6 @@ int sys_clock_get(int clock, time_t *secs, long *nanos);
 [[gnu::weak]] int sys_rmdir(const char *path);
 [[gnu::weak]] int sys_unlinkat(int dirfd, const char *path, int flags);
 [[gnu::weak]] int sys_rename(const char *path, const char *new_path);
-[[gnu::weak]] int sys_renameat(int olddirfd, const char *old_path, int newdirfd, const char *new_path);
 
 [[gnu::weak]] int sys_sigprocmask(int how, const sigset_t *__restrict set,
 		sigset_t *__restrict retrieve);

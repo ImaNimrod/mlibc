@@ -48,15 +48,16 @@ T load(void *ptr) {
 }
 
 // This Queue implementation is more simplistic than the ones in mlibc and helix.
-// In fact, we only manage a single chunk; this minimizes the memory usage of the queue.
 struct Queue {
-	Queue() : _handle{kHelNullHandle}, _lastProgress(0) {
-		HelQueueParameters params{.flags = 0, .ringShift = 0, .numChunks = 1, .chunkSize = 4096};
+	Queue() : _handle{kHelNullHandle}, _retrieveChunk{0}, _tailChunk{0}, _lastProgress{0},
+	          _sqCurrentChunk{0}, _sqProgress{0}, _chunkSize{4096} {
+		HelQueueParameters params{.flags = 0, .numChunks = 2, .chunkSize = 4096, .numSqChunks = 2};
 		HEL_CHECK(helCreateQueue(&params, &_handle));
 
-		auto chunksOffset = (sizeof(HelQueue) + (sizeof(int) << 0) + 63) & ~size_t(63);
+		auto chunksOffset = (sizeof(HelQueue) + 63) & ~size_t(63);
 		auto reservedPerChunk = (sizeof(HelChunk) + params.chunkSize + 63) & ~size_t(63);
-		auto overallSize = chunksOffset + params.numChunks * reservedPerChunk;
+		auto totalChunks = params.numChunks + params.numSqChunks;
+		auto overallSize = chunksOffset + totalChunks * reservedPerChunk;
 
 		void *mapping;
 		HEL_CHECK(helMapMemory(
@@ -70,16 +71,34 @@ struct Queue {
 		));
 
 		_queue = reinterpret_cast<HelQueue *>(mapping);
-		_chunk =
-		    reinterpret_cast<HelChunk *>(reinterpret_cast<std::byte *>(mapping) + chunksOffset);
+		auto chunksPtr = reinterpret_cast<std::byte *>(mapping) + chunksOffset;
+		for (unsigned int i = 0; i < 2; ++i)
+			_chunks[i] = reinterpret_cast<HelChunk *>(chunksPtr + i * reservedPerChunk);
+		// SQ chunks are after CQ chunks.
+		for (unsigned int i = 0; i < 2; ++i)
+			_sqChunks[i] = reinterpret_cast<HelChunk *>(chunksPtr + (2 + i) * reservedPerChunk);
 
-		// Reset and enqueue the first chunk.
-		_chunk->progressFutex = 0;
+		// Reset all CQ chunks.
+		for (unsigned int i = 0; i < 2; ++i) {
+			_chunks[i]->next = 0;
+			_chunks[i]->progressFutex = 0;
+		}
 
-		_queue->indexQueue[0] = 0;
-		_queue->headFutex = 1;
-		_nextIndex = 1;
+		// Set cqFirst to the initial chunk.
+		__atomic_store_n(&_queue->cqFirst, 0 | kHelNextPresent, __ATOMIC_RELEASE);
+
+		// Supply the remaining CQ chunks.
+		_tailChunk = 0;
+		for (unsigned int i = 1; i < 2; ++i) {
+			__atomic_store_n(&_chunks[_tailChunk]->next, i | kHelNextPresent, __ATOMIC_RELEASE);
+			_tailChunk = i;
+		}
 		_wakeHeadFutex();
+
+		// Initialize SQ state.
+		auto sqFirst = __atomic_load_n(&_queue->sqFirst, __ATOMIC_ACQUIRE);
+		_sqCurrentChunk = sqFirst & ~kHelNextPresent;
+		_sqProgress = 0;
 	}
 
 	Queue(const Queue &) = delete;
@@ -88,24 +107,92 @@ struct Queue {
 
 	HelHandle getHandle() { return _handle; }
 
+	// Push an element to the submission queue using a gather list.
+	void pushSq(uint32_t opcode, uintptr_t context, const void *const *segments,
+	            const size_t *segmentSizes, size_t numSegments) {
+		size_t dataLength = 0;
+		for (size_t i = 0; i < numSegments; ++i)
+			dataLength += segmentSizes[i];
+
+		auto elementSize = sizeof(HelElement) + dataLength;
+
+		// Check if we need to move to the next SQ chunk.
+		if (_sqProgress + elementSize > _chunkSize) {
+			// Wait for next chunk to become available.
+			auto nextWord = __atomic_load_n(&_sqChunks[_sqCurrentChunk - 2]->next, __ATOMIC_ACQUIRE);
+			while(!(nextWord & kHelNextPresent)) {
+				__atomic_fetch_and(&_queue->userNotify, ~kHelUserNotifySupplySqChunks, __ATOMIC_ACQUIRE);
+
+				nextWord = __atomic_load_n(&_sqChunks[_sqCurrentChunk - 2]->next, __ATOMIC_ACQUIRE);
+				if(nextWord & kHelNextPresent)
+					break;
+
+				HEL_CHECK(helDriveQueue(_handle, 0));
+			}
+
+			// Mark current chunk as done.
+			__atomic_store_n(&_sqChunks[_sqCurrentChunk - 2]->progressFutex,
+			                 _sqProgress | kHelProgressDone, __ATOMIC_RELEASE);
+
+			// Signal the kernel.
+			auto futex = __atomic_fetch_or(&_queue->kernelNotify, kHelKernelNotifySqProgress, __ATOMIC_RELEASE);
+			if (!(futex & kHelKernelNotifySqProgress))
+				HEL_CHECK(helDriveQueue(_handle, 0));
+
+			_sqCurrentChunk = nextWord & ~kHelNextPresent;
+			_sqProgress = 0;
+		}
+
+		// Write the element to the SQ chunk.
+		auto ptr = reinterpret_cast<char *>(_sqChunks[_sqCurrentChunk - 2]) +
+		           sizeof(HelChunk) + _sqProgress;
+		auto element = reinterpret_cast<HelElement *>(ptr);
+		element->length = dataLength;
+		element->opcode = opcode;
+		element->context = reinterpret_cast<void *>(context);
+
+		// Copy each segment.
+		size_t offset = 0;
+		for (size_t i = 0; i < numSegments; ++i) {
+			memcpy(ptr + sizeof(HelElement) + offset, segments[i], segmentSizes[i]);
+			offset += segmentSizes[i];
+		}
+
+		_sqProgress += elementSize;
+
+		// Update the progress futex.
+		__atomic_store_n(&_sqChunks[_sqCurrentChunk - 2]->progressFutex, _sqProgress, __ATOMIC_RELEASE);
+
+		// Signal the kernel.
+		auto futex = __atomic_fetch_or(&_queue->kernelNotify, kHelKernelNotifySqProgress, __ATOMIC_RELEASE);
+		if (!(futex & kHelKernelNotifySqProgress))
+			HEL_CHECK(helDriveQueue(_handle, 0));
+	}
+
 	void *dequeueSingle() {
 		while (true) {
 			bool done;
 			_waitProgressFutex(&done);
 			if (done) {
-				// Reset and enqueue the chunk again.
-				_chunk->progressFutex = 0;
+				auto cn = _retrieveChunk;
+				auto next = __atomic_load_n(&_chunks[cn]->next, __ATOMIC_ACQUIRE);
 
-				_queue->indexQueue[0] = 0;
-				_nextIndex = ((_nextIndex + 1) & kHelHeadMask);
+				// Reset and supply the chunk again.
+				_chunks[cn]->next = 0;
+				_chunks[cn]->progressFutex = 0;
+				__atomic_store_n(&_chunks[_tailChunk]->next, cn | kHelNextPresent, __ATOMIC_RELEASE);
+				_tailChunk = cn;
 				_wakeHeadFutex();
 
 				_lastProgress = 0;
+				// Otherwise, the kernel would not have set the done bit.
+				__ensure(next & kHelNextPresent);
+				_retrieveChunk = next & ~kHelNextPresent;
 				continue;
 			}
 
 			// Dequeue the next element.
-			auto ptr = (char *)_chunk + sizeof(HelChunk) + _lastProgress;
+			auto ptr = (char *)_chunks[_retrieveChunk] + sizeof(HelChunk) + _lastProgress;
 			auto element = load<HelElement>(ptr);
 			_lastProgress += sizeof(HelElement) + element.length;
 			return ptr + sizeof(HelElement);
@@ -114,48 +201,51 @@ struct Queue {
 
 private:
 	void _wakeHeadFutex() {
-		auto futex = __atomic_exchange_n(&_queue->headFutex, _nextIndex, __ATOMIC_RELEASE);
-		if (futex & kHelHeadWaiters)
-			HEL_CHECK(helFutexWake(&_queue->headFutex, UINT32_MAX));
+		auto futex =
+		    __atomic_fetch_or(&_queue->kernelNotify, kHelKernelNotifySupplyCqChunks, __ATOMIC_RELEASE);
+		if (!(futex & kHelKernelNotifySupplyCqChunks))
+			HEL_CHECK(helDriveQueue(_handle, 0));
 	}
 
 	void _waitProgressFutex(bool *done) {
+		auto check = [&]() -> bool {
+			auto progress = __atomic_load_n(&_chunks[_retrieveChunk]->progressFutex, __ATOMIC_ACQUIRE);
+			__ensure(!(progress & ~(kHelProgressMask | kHelProgressDone)));
+			if (_lastProgress != (progress & kHelProgressMask)) {
+				*done = false;
+				return true;
+			} else if (progress & kHelProgressDone) {
+				*done = true;
+				return true;
+			}
+			return false;
+		};
+
+		if (check())
+			return;
 		while (true) {
-			auto futex = __atomic_load_n(&_chunk->progressFutex, __ATOMIC_ACQUIRE);
-			__ensure(!(futex & ~(kHelProgressMask | kHelProgressWaiters | kHelProgressDone)));
-			do {
-				if (_lastProgress != (futex & kHelProgressMask)) {
-					*done = false;
-					return;
-				} else if (futex & kHelProgressDone) {
-					*done = true;
-					return;
-				}
-
-				if (futex & kHelProgressWaiters)
-					break; // Waiters bit is already set (in a previous iteration).
-			} while (!__atomic_compare_exchange_n(
-			    &_chunk->progressFutex,
-			    &futex,
-			    _lastProgress | kHelProgressWaiters,
-			    false,
-			    __ATOMIC_ACQUIRE,
-			    __ATOMIC_ACQUIRE
-			));
-
-			int err = helFutexWait(&_chunk->progressFutex, _lastProgress | kHelProgressWaiters, -1);
-			if (err == kHelErrCancelled)
+			__atomic_fetch_and(&_queue->userNotify, ~kHelUserNotifyCqProgress, __ATOMIC_ACQUIRE);
+			if (check())
+				return;
+			auto e = helDriveQueue(_handle, kHelDriveWaitCqProgress);
+			if (e == kHelErrCancelled)
 				continue;
-			HEL_CHECK(err);
+			HEL_CHECK(e);
 		}
 	}
 
 private:
 	HelHandle _handle;
 	HelQueue *_queue;
-	HelChunk *_chunk;
-	int _nextIndex;
+	HelChunk *_chunks[2];
+	HelChunk *_sqChunks[2];
+	int _retrieveChunk;
+	int _tailChunk;
 	int _lastProgress;
+	// SQ state.
+	int _sqCurrentChunk;
+	int _sqProgress;
+	size_t _chunkSize;
 };
 
 frg::manual_box<Queue> globalQueue;
@@ -238,7 +328,14 @@ int sys_open(const char *path, int flags, mode_t mode, int *fd) {
 	actions[2].length = tail.size();
 	actions[3].type = kHelActionRecvInline;
 	actions[3].flags = 0;
-	HEL_CHECK(helSubmitAsync(posixLane, actions, 4, globalQueue->getHandle(), 0, 0));
+
+	HelSqExchangeMsgs sqHeader;
+	sqHeader.lane = posixLane;
+	sqHeader.count = 4;
+	sqHeader.flags = 0;
+	const void *segments[] = {&sqHeader, actions};
+	size_t segmentSizes[] = {sizeof(sqHeader), 4 * sizeof(HelAction)};
+	globalQueue->pushSq(kHelSubmitExchangeMsgs, 0, segments, segmentSizes, 2);
 
 	auto element = globalQueue->dequeueSingle();
 	auto offer = parseHandle(element);
@@ -284,7 +381,14 @@ int sys_seek(int fd, off_t offset, int whence, off_t *new_offset) {
 	actions[1].length = ser.size();
 	actions[2].type = kHelActionRecvInline;
 	actions[2].flags = 0;
-	HEL_CHECK(helSubmitAsync(lane, actions, 3, globalQueue->getHandle(), 0, 0));
+
+	HelSqExchangeMsgs sqHeader;
+	sqHeader.lane = lane;
+	sqHeader.count = 3;
+	sqHeader.flags = 0;
+	const void *segments[] = {&sqHeader, actions};
+	size_t segmentSizes[] = {sizeof(sqHeader), 3 * sizeof(HelAction)};
+	globalQueue->pushSq(kHelSubmitExchangeMsgs, 0, segments, segmentSizes, 2);
 
 	auto element = globalQueue->dequeueSingle();
 	auto offer = parseHandle(element);
@@ -330,7 +434,14 @@ int sys_read(int fd, void *data, size_t length, ssize_t *bytes_read) {
 	actions[4].flags = 0;
 	actions[4].buffer = data;
 	actions[4].length = length;
-	HEL_CHECK(helSubmitAsync(lane, actions, 5, globalQueue->getHandle(), 0, 0));
+
+	HelSqExchangeMsgs sqHeader;
+	sqHeader.lane = lane;
+	sqHeader.count = 5;
+	sqHeader.flags = 0;
+	const void *segments[] = {&sqHeader, actions};
+	size_t segmentSizes[] = {sizeof(sqHeader), 5 * sizeof(HelAction)};
+	globalQueue->pushSq(kHelSubmitExchangeMsgs, 0, segments, segmentSizes, 2);
 
 	auto element = globalQueue->dequeueSingle();
 	auto offer = parseHandle(element);
@@ -376,7 +487,14 @@ int sys_vm_map(void *hint, size_t size, int prot, int flags, int fd, off_t offse
 	actions[1].length = ser.size();
 	actions[2].type = kHelActionRecvInline;
 	actions[2].flags = 0;
-	HEL_CHECK(helSubmitAsync(posixLane, actions, 3, globalQueue->getHandle(), 0, 0));
+
+	HelSqExchangeMsgs sqHeader;
+	sqHeader.lane = posixLane;
+	sqHeader.count = 3;
+	sqHeader.flags = 0;
+	const void *segments[] = {&sqHeader, actions};
+	size_t segmentSizes[] = {sizeof(sqHeader), 3 * sizeof(HelAction)};
+	globalQueue->pushSq(kHelSubmitExchangeMsgs, 0, segments, segmentSizes, 2);
 
 	auto element = globalQueue->dequeueSingle();
 	auto offer = parseHandle(element);
@@ -414,7 +532,13 @@ int sys_close(int fd) {
 	actions[1].length = ser.size();
 	actions[2].type = kHelActionRecvInline;
 	actions[2].flags = 0;
-	HEL_CHECK(helSubmitAsync(posixLane, actions, 3, globalQueue->getHandle(), 0, 0));
+	HelSqExchangeMsgs sqHeader;
+	sqHeader.lane = posixLane;
+	sqHeader.count = 3;
+	sqHeader.flags = 0;
+	const void *segments[] = {&sqHeader, actions};
+	size_t segmentSizes[] = {sizeof(sqHeader), 3 * sizeof(HelAction)};
+	globalQueue->pushSq(kHelSubmitExchangeMsgs, 0, segments, segmentSizes, 2);
 
 	auto element = globalQueue->dequeueSingle();
 	auto offer = parseHandle(element);
@@ -449,9 +573,9 @@ int sys_futex_wait(int *pointer, int expected, const struct timespec *time) {
 	return 0;
 }
 
-int sys_futex_wake(int *pointer) {
+int sys_futex_wake(int *pointer, bool all) {
 	// This implementation is inherently signal-safe.
-	if (helFutexWake(pointer, UINT32_MAX))
+	if (helFutexWake(pointer, all ? UINT32_MAX : 1))
 		return -1;
 	return 0;
 }
@@ -478,7 +602,13 @@ int sys_vm_protect(void *pointer, size_t size, int prot) {
 	actions[1].length = ser.size();
 	actions[2].type = kHelActionRecvInline;
 	actions[2].flags = 0;
-	HEL_CHECK(helSubmitAsync(posixLane, actions, 3, globalQueue->getHandle(), 0, 0));
+	HelSqExchangeMsgs sqHeader;
+	sqHeader.lane = posixLane;
+	sqHeader.count = 3;
+	sqHeader.flags = 0;
+	const void *segments[] = {&sqHeader, actions};
+	size_t segmentSizes[] = {sizeof(sqHeader), 3 * sizeof(HelAction)};
+	globalQueue->pushSq(kHelSubmitExchangeMsgs, 0, segments, segmentSizes, 2);
 
 	auto element = globalQueue->dequeueSingle();
 	auto offer = parseHandle(element);
