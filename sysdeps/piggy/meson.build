@@ -13,6 +13,8 @@ libc_sources += files(
 	'generic/entry.cpp',
 	'generic/generic.cpp',
 	'generic/piggy.cpp',
+    'threading/thread-entry.S',
+    'threading/thread.cpp',
 )
 
 if not no_headers
@@ -76,6 +78,11 @@ if not no_headers
       'include/piggy/poweroff.h',
       'include/piggy/syscall.h',
       subdir: 'piggy',
+    )
+
+    install_headers(
+      'include/sys/sysmacros.h',
+      subdir: 'sys',
     )
 endif
 

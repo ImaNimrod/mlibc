@@ -52,9 +52,13 @@ namespace mlibc {
         return syscall0(SYS_GETPID);
     }
 
-	pid_t sys_getppid() {
+    pid_t sys_getppid() {
         return syscall0(SYS_GETPPID);
-	}
+    }
+
+    pid_t sys_gettid() {
+        return syscall0(SYS_GETTID);
+    }
 
     int sys_openat(int dirfd, const char *path, int flags, mode_t mode, int *fd) {
         (void) mode;
@@ -184,6 +188,19 @@ namespace mlibc {
         return 0;
     }
 
+    int sys_utimensat(int dirfd, const char *pathname, const struct timespec times[2], int flags) {
+        if (pathname == NULL) {
+            flags |= AT_EMPTY_PATH;
+        }
+
+        long ret = syscall4(SYS_UTIME, dirfd, (long) pathname, (long) times, flags);
+        if (ret < 0) {
+            return -ret;
+        }
+
+        return 0;
+    }
+
     int sys_ppoll(struct pollfd* fds, nfds_t count, const struct timespec* timeout, const sigset_t* sigmask, int* num_events) {
         (void) sigmask;
 
@@ -300,6 +317,16 @@ namespace mlibc {
         return sys_ioctl(fd, TCSETS, (void*) attr, &res);
     }
 
+    int sys_tcgetwinsize(int fd, struct winsize *winsz) {
+        int res;
+        return sys_ioctl(fd, TIOCGWINSZ, (void*) winsz, &res);
+    }
+
+    int sys_tcsetwinsize(int fd, const struct winsize *winsz) {
+        int res;
+        return sys_ioctl(fd, TIOCSWINSZ, (void*) winsz, &res);
+    }
+
     int sys_chroot(const char *path) {
         long ret = syscall1(SYS_CHROOT, (long) path);
         if (ret < 0) {
@@ -343,21 +370,51 @@ namespace mlibc {
         return 0;
     }
 
+#ifndef MLIBC_BUILDING_RTLD
+
+    extern "C" void __mlibc_thread_entry();
+
+    int sys_clone(void *tcb, pid_t *pid_out, void *stack) {
+        (void)tcb;
+
+        long ret = syscall2(SYS_THREADNEW, (long) __mlibc_thread_entry, (long) stack);
+        if (ret < 0) {
+            return -ret;
+        }
+
+        *pid_out = ret;
+        return 0;
+    }
+
+    [[noreturn]] void sys_thread_exit() {
+        syscall0(SYS_THREADEXIT);
+        __builtin_unreachable();
+    }
+
+#endif
+
     int sys_futex_tid() {
         return syscall0(SYS_GETTID);
     }
 
+    #define FUTEX_WAIT 0
+    #define FUTEX_WAKE 1
+
     int sys_futex_wait(int *pointer, int expected, const struct timespec *time) {
-        (void) pointer;
-        (void) expected;
         (void) time;
-        sys_libc_log("futex_wait\n");
+
+        long ret = syscall3(SYS_FUTEX, (long) pointer, FUTEX_WAIT, expected);
+        if (ret < 0) {
+            return -ret;
+        }
         return 0;
     }
 
     int sys_futex_wake(int *pointer) {
-        (void) pointer;
-        sys_libc_log("futex_wake\n");
+        long ret = syscall2(SYS_FUTEX, (long) pointer, FUTEX_WAKE);
+        if (ret < 0) {
+            return -ret;
+        }
         return 0;
     }
 
