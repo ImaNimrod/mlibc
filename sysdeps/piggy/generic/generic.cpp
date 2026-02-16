@@ -358,7 +358,7 @@ namespace mlibc {
     int sys_clock_get(int clock, time_t *secs, long *nanos) {
         struct timespec ts;
 
-        long ret = syscall2(SYS_GETTIME, clock, (uint64_t)&ts);
+        long ret = syscall2(SYS_GETCLOCK, clock, (uint64_t)&ts);
         if (ret < 0) {
             return -ret;
         }
@@ -371,7 +371,7 @@ namespace mlibc {
     int sys_clock_set(int clock, time_t secs, long nanos) {
         struct timespec ts = { .tv_sec = secs, .tv_nsec = nanos };
 
-        long ret = syscall2(SYS_SETTIME, clock, (uint64_t) &ts);
+        long ret = syscall2(SYS_SETCLOCK, clock, (uint64_t) &ts);
         if (ret < 0) {
             return -ret;
         }
