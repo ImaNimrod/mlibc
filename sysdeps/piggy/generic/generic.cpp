@@ -443,10 +443,7 @@ namespace mlibc {
     }
 
     int sys_vm_map(void *hint, size_t size, int prot, int flags, int fd, off_t offset, void **window) {
-        (void) fd;
-        (void) offset;
-
-        long ret = syscall4(SYS_MMAP, (long) hint, size, prot, flags);
+        long ret = syscall6(SYS_MMAP, (long) hint, size, prot, flags, fd, offset);
         if (ret < 0 && ret >= -4095) {
             return -ret;
         }

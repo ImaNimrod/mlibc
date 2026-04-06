@@ -61,7 +61,7 @@ static long syscall1(long n, long arg1) {
         "syscall"
         : "=a"(ret)
         : "a"(n), "D"(arg1)
-        : "rcx", "r11", "memory"
+        : "memory", "rcx", "r11"
     );
     return ret;
 }
@@ -72,7 +72,7 @@ static long syscall2(long n, long arg1, long arg2) {
         "syscall"
         : "=a"(ret)
         : "a"(n), "D"(arg1), "S"(arg2)
-        : "rcx", "r11", "memory"
+        : "memory", "rcx", "r11"
     );
     return ret;
 }
@@ -83,7 +83,7 @@ static long syscall3(long n, long arg1, long arg2, long arg3) {
         "syscall"
         : "=a"(ret)
         : "a"(n), "D"(arg1), "S"(arg2), "d"(arg3)
-        : "rcx", "r11", "memory"
+        : "memory", "rcx", "r11"
     );
     return ret;
 }
@@ -95,7 +95,37 @@ static long syscall4(long n, long arg1, long arg2, long arg3, long arg4) {
 	asm volatile("syscall"
         : "=a"(ret)
 		: "a"(n), "D"(arg1), "S"(arg2), "d"(arg3), "r"(r4)
-		: "memory", "rcx", "r11");
+		: "memory", "rcx", "r11"
+    );
+    return ret;
+}
+
+static long syscall5(long n, long arg1, long arg2, long arg3, long arg4, long arg5) {
+    register long r4 asm("r10") = arg4;
+    register long r5 asm("r8") = arg5;
+
+    long ret;
+    asm volatile (
+        "syscall"
+        : "=a"(ret)
+        : "a"(n), "D"(arg1), "S"(arg2), "d"(arg3), "r"(r4), "r"(r5)
+        : "memory", "rcx", "r11"
+    );
+    return ret;
+}
+
+static long syscall6(long n, long arg1, long arg2, long arg3, long arg4, long arg5, long arg6) {
+    register long r4 asm("r10") = arg4;
+    register long r5 asm("r8") = arg5;
+    register long r6 asm("r9") = arg6;
+
+    long ret;
+    asm volatile (
+        "syscall"
+        : "=a"(ret)
+        : "a"(n), "D"(arg1), "S"(arg2), "d"(arg3), "r"(r4), "r"(r5), "r"(r6)
+        : "memory", "rcx", "r11"
+    );
     return ret;
 }
 

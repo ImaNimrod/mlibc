@@ -74,6 +74,7 @@ if not no_headers
 
     install_headers(
       'include/piggy/archctl.h',
+      'include/piggy/hwclock.h',
       'include/piggy/mount.h',
       'include/piggy/poweroff.h',
       'include/piggy/syscall.h',

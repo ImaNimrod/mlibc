@@ -293,6 +293,8 @@ elif host_machine.system() == 'nyaux'
 elif host_machine.system() == 'piggy'
 	rtld_include_dirs += include_directories('sysdeps/piggy/include')
 	libc_include_dirs += include_directories('sysdeps/piggy/include')
+	internal_conf.set10('MLIBC_MAP_DSO_SEGMENTS', true)
+	internal_conf.set10('MLIBC_MAP_FILE_WINDOWS', true)
 	internal_conf.set10('MLIBC_MMAP_ALLOCATE_DSO', true)
 	subdir('sysdeps/piggy')
 # ANCHOR: demo-sysdeps
