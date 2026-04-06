@@ -1,4 +1,3 @@
-#include <bits/ensure.h>
 #include <mlibc/elf/startup.h>
 #include <stdint.h>
 #include <stdlib.h>

@@ -1,0 +1,69 @@
+#pragma once
+
+#include <mlibc/sysdep-signatures.hpp>
+
+namespace mlibc {
+
+struct PiggySysdepTags :
+    Exit,
+    Fork,
+    Execve,
+    Waitpid,
+    GetPid,
+    GetPpid,
+    GetTid,
+    Openat,
+    Open,
+    OpenDir,
+    Mkdirat,
+    Mkdir,
+    Unlinkat,
+    Rmdir,
+    Close,
+    Read,
+    Write,
+    Ioctl,
+    Seek,
+    Stat,
+    Ftruncate,
+    Utimensat,
+    Ppoll,
+    Poll,
+    Fsync,
+    ReadEntries,
+    Chdir,
+    Fchdir,
+    Fcntl,
+    Dup,
+    Dup2,
+    Isatty,
+    Tcgetattr,
+    Tcsetattr,
+    Tcgetwinsize,
+    Tcsetwinsize,
+    Chroot,
+    Pipe,
+    Sleep,
+    ClockGet,
+    ClockSet,
+    Clone,
+    ThreadExit,
+    FutexTid,
+    FutexWait,
+    FutexWake,
+    Uname,
+    TcbSet,
+    VmMap,
+    VmUnmap,
+    VmProtect,
+    AnonAllocate,
+    AnonFree,
+    LibcLog,
+    LibcPanic,
+    PrepareStack
+{};
+
+template<typename Tag>
+using Sysdeps = SysdepOf<PiggySysdepTags, Tag>;
+
+} // namespace mlibc
