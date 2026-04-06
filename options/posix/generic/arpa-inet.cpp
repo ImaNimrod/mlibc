@@ -148,16 +148,37 @@ const char *inet_ntop(int af, const void *__restrict src, char *__restrict dst,
 		case AF_INET: {
 			auto source = reinterpret_cast<const struct in_addr*>(src);
 			uint32_t addr = ntohl(source->s_addr);
-			if (snprintf(dst, size, "%d.%d.%d.%d",
+			int written = snprintf(dst, size, "%u.%u.%u.%u",
 					(addr >> 24) & 0xff,
 					(addr >> 16) & 0xff,
 					(addr >> 8) & 0xff,
-					addr & 0xff) < (int)size)
-				return dst;
-			break;
+					addr & 0xff);
+
+			if (written < 0 || static_cast<size_t>(written) >= size) {
+				errno = ENOSPC;
+				return nullptr;
+			}
+			return dst;
 		}
 		case AF_INET6: {
 			auto source = reinterpret_cast<const struct in6_addr*>(src);
+
+			/* check if we are dealing with an IPv6-mapped IPv4 address */
+			bool mapped = true;
+			for (int i = 0; i < 10; ++i)
+				if (source->s6_addr[i] != 0)
+					mapped = false;
+
+			if (source->s6_addr[10] != 0xff || source->s6_addr[11] != 0xff)
+				mapped = false;
+
+			if (mapped) {
+				int n = snprintf(dst, size, "::ffff:%u.%u.%u.%u", source->s6_addr[12], source->s6_addr[13], source->s6_addr[14], source->s6_addr[15]);
+				if (n >= 0 && static_cast<size_t>(n) < size)
+					return dst;
+				break;
+			}
+
 			size_t cur_zeroes_off = 0;
 			size_t cur_zeroes_len = 0;
 			size_t max_zeroes_off = 0;
@@ -168,7 +189,7 @@ const char *inet_ntop(int af, const void *__restrict src, char *__restrict dst,
 				auto ptr = source->s6_addr + (i * 2);
 				if(!ptr[0] && !ptr[1]) {
 					cur_zeroes_len++;
-					if(max_zeroes_len < cur_zeroes_len) {
+					if(max_zeroes_len < cur_zeroes_len && cur_zeroes_len > 1) {
 						max_zeroes_len = cur_zeroes_len;
 						max_zeroes_off = cur_zeroes_off;
 					}
@@ -203,7 +224,12 @@ const char *inet_ntop(int af, const void *__restrict src, char *__restrict dst,
 					}
 				}
 
-				off += snprintf(dst + off, size - off, "%x", ptr[0] << 8 | ptr[1]);
+				int ret = snprintf(dst + off, size - off, "%x", ptr[0] << 8 | ptr[1]);
+				if (ret < 0 || static_cast<size_t>(ret) >= size - off) {
+					errno = ENOSPC;
+					return nullptr;
+				}
+				off += ret;
 			}
 
 			dst[off] = 0;
@@ -225,8 +251,10 @@ int inet_pton(int af, const char *__restrict src, void *__restrict dst) {
 			uint8_t array[4] = {};
 			for (int i = 0; i < 4; i++) {
 				char *end;
+				if (!isdigit(*src))
+					return 0;
 				long int value = strtol(src, &end, 10);
-				if (value > 255)
+				if (value > 255 || (end - src) > 3)
 					return 0;
 				if (*end != '\0' && *end != '.')
 					return 0;
@@ -251,35 +279,64 @@ int inet_pton(int af, const char *__restrict src, void *__restrict dst) {
 				return false;
 			};
 
+			char *end = nullptr;
+
+			if (!isxdigit(*src) && src[0] != ':')
+				return 0;
+
 			for(; i < 8; i++) {
-				char *end = nullptr;
 				auto value = strtol(src, &end, 16);
 
-				if (value > UINT16_MAX)
+				if (value > UINT16_MAX || (end - src) > 4)
 					return 0;
 				if(end[0] != '\0' && end[0] != ':' && end[0] != '.')
 					return 0;
 
 				if(end[0] == '.' && reservedRange() && i < 7) {
 					char *ipv4end = nullptr;
+					if (!isdigit(*src))
+						return 0;
 					auto value0 = strtol(src, &ipv4end, 10);
+					// reject overly large or empty values
 					if(ipv4end[0] != '.' || value0 > UINT8_MAX || src == ipv4end)
 						return 0;
+					// reject overlong segments or leading zeroes
+					if ((ipv4end - src) > 3 || (src[0] == '0' && value))
+						return 0;
 					src = ipv4end + 1;
+					if (!isdigit(*src))
+						return 0;
 					auto value1 = strtol(src, &ipv4end, 10);
+					// reject overly large or empty values
 					if(ipv4end[0] != '.' || value1 > UINT8_MAX || src == ipv4end)
+						return 0;
+					// reject overlong segments or leading zeroes
+					if ((ipv4end - src) > 3 || (src[0] == '0' && value))
 						return 0;
 					array[i++] = htons((value0 << 8) | value1);
 					src = ipv4end + 1;
 
+					if (!isdigit(*src))
+						return 0;
 					auto value2 = strtol(src, &ipv4end, 10);
+					// reject overly large or empty values
 					if(ipv4end[0] != '.' || value2 > UINT8_MAX || src == ipv4end)
 						return 0;
+					// reject overlong segments or leading zeroes
+					if ((ipv4end - src) > 3 || (src[0] == '0' && value))
+						return 0;
 					src = ipv4end + 1;
+					if (!isdigit(*src))
+						return 0;
 					auto value3 = strtol(src, &ipv4end, 10);
+					// reject overly large or empty values
 					if(value3 > UINT8_MAX || src == ipv4end)
 						return 0;
+					// reject overlong segments or leading zeroes
+					if ((ipv4end - src) > 3 || (src[0] == '0' && value))
+						return 0;
 					array[i] = htons((value2 << 8) | value3);
+					end = ipv4end;
 					break;
 				} else if(end[0] == ':' && end[1] == ':') {
 					if(doubleColonOffset)
@@ -298,10 +355,19 @@ int inet_pton(int af, const char *__restrict src, void *__restrict dst) {
 					break;
 			}
 
+			if(end[0] != '\0')
+				return 0;
+
+			if (!doubleColonOffset && i < 7)
+				return 0;
+
 			auto addr = reinterpret_cast<struct in6_addr *>(dst);
 
 			if(doubleColonOffset) {
 				size_t suffix = i - doubleColonOffset.value() + 1;
+				if (*doubleColonOffset + suffix >= 8)
+					return 0;
+
 				memset(addr->s6_addr, 0, 16);
 
 				for(size_t j = 0; j < doubleColonOffset.value(); j++) {

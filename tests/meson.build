@@ -46,6 +46,11 @@ all_test_cases = [
 	'ansi/swscanf',
 	'ansi/fwscanf',
 	'ansi/swprintf',
+	'ansi/wcsftime',
+	'ansi/wctype',
+	'ansi/wctrans',
+	'ansi/nanosleep',
+	'ansi/btowc',
 	'bsd/ns_get_put',
 	'bsd/reallocarray',
 	'bsd/strl',
@@ -139,6 +144,14 @@ all_test_cases = [
 	'posix/inet_aton',
 	'posix/pthread_cond_signal',
 	'posix/protoent',
+	'posix/lfind',
+	'posix/lsearch',
+	'posix/nftw',
+	'posix/wcslcat',
+	'posix/wcslcpy',
+	'posix/wcpcpy',
+	'posix/wcpncpy',
+	'posix/getwchar',
 	'glibc/getopt',
 	'glibc/ffsl-ffsll',
 	'glibc/error_message_count',
@@ -151,6 +164,7 @@ all_test_cases = [
 	'glibc/rpmatch',
 	'glibc/strverscmp',
 	'glibc/memmem',
+	'glibc/stdio_ext',
 	'linux/xattr',
 	'linux/pthread_setname_np',
 	'linux/pthread_attr',
@@ -162,6 +176,8 @@ all_test_cases = [
 	'linux/ppoll',
 	'linux/utmp',
 	'linux/utmpx',
+	'linux-wrappers/rt_tgsigqueueinfo',
+	'linux-wrappers/rt_sigqueueinfo',
 ]
 
 if host_machine.system() == 'linux'
@@ -329,6 +345,8 @@ foreach test_name : all_test_cases
 	elif test_subdir == 'posix' and not posix_option
 		continue
 	elif test_subdir == 'linux' and not linux_option
+		continue
+	elif test_subdir == 'linux-wrappers' and not linux_wrappers_option
 		continue
 	endif
 

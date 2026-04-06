@@ -59,8 +59,16 @@ extern "C" {
 #define _POSIX_MEMLOCK_RANGE _POSIX_VERSION
 /* mmap, munmap, shm_open, shm_unlink */
 #define _POSIX_SHARED_MEMORY_OBJECTS _POSIX_VERSION
+/* pthread_spin_{destroy,init,lock,trylock,unlock} */
+#define _POSIX_SPIN_LOCKS _POSIX_VERSION
 /* open, msync, fsync, fdatasync */
 #define _POSIX_SYNCHRONIZED_IO _POSIX_VERSION
+/* pthread_attr_setstack */
+#define _POSIX_THREAD_ATTR_STACKADDR _POSIX_VERSION
+/* pthread_attr_setstacksize */
+#define _POSIX_THREAD_ATTR_STACKSIZE _POSIX_VERSION
+
+#define _XOPEN_UNIX 1
 
 /* MISSING: additional _POSIX and _XOPEN feature macros */
 /* MISSING: _POSIX_TIMESTAMP_RESOLUTION and _POSIX2_SYMLINKS */
@@ -253,12 +261,20 @@ extern "C" {
 #define _SC_TRACE_EVENT_FILTER 182
 #define _SC_TRACE_INHERIT 183
 #define _SC_TRACE_LOG 184
+#define _SC_IPV6 235
+#define _SC_RAW_SOCKETS 236
+#define _SC_SS_REPL_MAX 241
+#define _SC_THREAD_ROBUST_PRIO_INHERIT 247
+#define _SC_THREAD_ROBUST_PRIO_PROTECT 248
+#define _SC_MINSIGSTKSZ 249
+#define _SC_SIGSTKSZ 250
+
+#define __MLIBC_SC_MAX (_SC_SIGSTKSZ+1)
 
 /* Port-specific _SC_* define values */
 
 #if defined (__ironclad__)
 #define _SC_TOTAL_PAGES 1000
-#define _SC_HOST_OPEN_MAX 1001
 #endif /* defined (__ironclad__) */
 
 #define STDERR_FILENO 2

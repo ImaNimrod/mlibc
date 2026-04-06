@@ -16,7 +16,7 @@ namespace mlibc {
 extern "C" void __mlibc_thread_entry();
 
 int
-sys_clone(void *tcb, pid_t *tid_out, void *stack)
+Sysdeps<Clone>::operator()(void *tcb, pid_t *tid_out, void *stack)
 {
 	(void)tcb;
 
@@ -31,7 +31,7 @@ sys_clone(void *tcb, pid_t *tid_out, void *stack)
 }
 
 int
-sys_prepare_stack(void **stack, void *entry, void *arg, void *tcb,
+Sysdeps<PrepareStack>::operator()(void **stack, void *entry, void *arg, void *tcb,
     size_t *stack_size, size_t *guard_size, void **stack_base)
 {
 	// TODO guard
@@ -66,14 +66,14 @@ sys_prepare_stack(void **stack, void *entry, void *arg, void *tcb,
 }
 
 void
-sys_thread_exit()
+Sysdeps<ThreadExit>::operator()()
 {
 	syscall0(SYS_thread_exit, NULL);
 	__builtin_unreachable();
 }
 
 pid_t
-sys_gettid()
+Sysdeps<GetTid>::operator()()
 {
 	return syscall0(SYS_thread_gettid, NULL);
 }
@@ -81,26 +81,18 @@ sys_gettid()
 } /* namespace mlibc */
 
 extern "C" void __mlibc_thread_trampoline(void *(*fn)(void *), Tcb *tcb, void *arg) {
-	if (mlibc::sys_tcb_set(tcb)) {
+	if (mlibc::sysdep<TcbSet>(tcb)) {
 		__ensure(!"failed to set tcb for new thread");
 	}
 
 	while (__atomic_load_n(&tcb->tid, __ATOMIC_RELAXED) == 0) {
-		mlibc::sys_futex_wait(&tcb->tid, 0, nullptr);
+		mlibc::sysdep<FutexWait>(&tcb->tid, 0, nullptr);
 	}
+
+	// Enable cancellation once the TCB is up
+	__atomic_fetch_or(&tcb->cancelBits, tcbCancelEnableBit, __ATOMIC_RELAXED);
 
 	tcb->invokeThreadFunc(reinterpret_cast<void *>(fn), arg);
 
-	__atomic_store_n(&tcb->didExit, 1, __ATOMIC_RELEASE);
-	mlibc::sys_futex_wake(&tcb->didExit, true);
-
-	mlibc::sys_thread_exit();
+	mlibc::thread_exit(tcb->returnValue);
 }
-
-#if defined (__m68k__)
-extern "C" void *
-__m68k_read_tp (void)
-{
-	return mlibc::sys_tp_get();
-}
-#endif

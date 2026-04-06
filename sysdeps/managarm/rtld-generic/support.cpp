@@ -50,7 +50,7 @@ T load(void *ptr) {
 // This Queue implementation is more simplistic than the ones in mlibc and helix.
 struct Queue {
 	Queue() : _handle{kHelNullHandle}, _retrieveChunk{0}, _tailChunk{0}, _lastProgress{0},
-	          _sqCurrentChunk{0}, _sqProgress{0}, _chunkSize{4096} {
+	          _pendingNotify{0}, _sqCurrentChunk{0}, _sqProgress{0}, _chunkSize{4096} {
 		HelQueueParameters params{.flags = 0, .numChunks = 2, .chunkSize = 4096, .numSqChunks = 2};
 		HEL_CHECK(helCreateQueue(&params, &_handle));
 
@@ -119,15 +119,17 @@ struct Queue {
 		// Check if we need to move to the next SQ chunk.
 		if (_sqProgress + elementSize > _chunkSize) {
 			// Wait for next chunk to become available.
-			auto nextWord = __atomic_load_n(&_sqChunks[_sqCurrentChunk - 2]->next, __ATOMIC_ACQUIRE);
-			while(!(nextWord & kHelNextPresent)) {
-				__atomic_fetch_and(&_queue->userNotify, ~kHelUserNotifySupplySqChunks, __ATOMIC_ACQUIRE);
-
+			int nextWord;
+			while (true) {
 				nextWord = __atomic_load_n(&_sqChunks[_sqCurrentChunk - 2]->next, __ATOMIC_ACQUIRE);
-				if(nextWord & kHelNextPresent)
+				if (nextWord & kHelNextPresent)
 					break;
-
-				HEL_CHECK(helDriveQueue(_handle, 0));
+				auto notify = __atomic_load_n(&_queue->userNotify, __ATOMIC_RELAXED);
+				if (!(notify & kHelUserNotifySupplySqChunks)) {
+					HEL_CHECK(helDriveQueue(_handle, 0, 0));
+				} else {
+					__atomic_fetch_and(&_queue->userNotify, ~kHelUserNotifySupplySqChunks, __ATOMIC_ACQUIRE);
+				}
 			}
 
 			// Mark current chunk as done.
@@ -137,7 +139,7 @@ struct Queue {
 			// Signal the kernel.
 			auto futex = __atomic_fetch_or(&_queue->kernelNotify, kHelKernelNotifySqProgress, __ATOMIC_RELEASE);
 			if (!(futex & kHelKernelNotifySqProgress))
-				HEL_CHECK(helDriveQueue(_handle, 0));
+				HEL_CHECK(helDriveQueue(_handle, 0, 0));
 
 			_sqCurrentChunk = nextWord & ~kHelNextPresent;
 			_sqProgress = 0;
@@ -166,7 +168,7 @@ struct Queue {
 		// Signal the kernel.
 		auto futex = __atomic_fetch_or(&_queue->kernelNotify, kHelKernelNotifySqProgress, __ATOMIC_RELEASE);
 		if (!(futex & kHelKernelNotifySqProgress))
-			HEL_CHECK(helDriveQueue(_handle, 0));
+			HEL_CHECK(helDriveQueue(_handle, 0, 0));
 	}
 
 	void *dequeueSingle() {
@@ -204,33 +206,55 @@ private:
 		auto futex =
 		    __atomic_fetch_or(&_queue->kernelNotify, kHelKernelNotifySupplyCqChunks, __ATOMIC_RELEASE);
 		if (!(futex & kHelKernelNotifySupplyCqChunks))
-			HEL_CHECK(helDriveQueue(_handle, 0));
+			HEL_CHECK(helDriveQueue(_handle, 0, 0));
 	}
 
 	void _waitProgressFutex(bool *done) {
-		auto check = [&]() -> bool {
-			auto progress = __atomic_load_n(&_chunks[_retrieveChunk]->progressFutex, __ATOMIC_ACQUIRE);
-			__ensure(!(progress & ~(kHelProgressMask | kHelProgressDone)));
-			if (_lastProgress != (progress & kHelProgressMask)) {
-				*done = false;
-				return true;
-			} else if (progress & kHelProgressDone) {
-				*done = true;
-				return true;
-			}
-			return false;
-		};
+		// userNotify bits checked by this function (these MUST be checked in the loop below!).
+		const auto relevantNotify = kHelUserNotifyCqProgress;
+		// userNotify bits ignored by this function.
+		const auto maskedNotify = kHelUserNotifySupplySqChunks;
 
-		if (check())
-			return;
-		while (true) {
-			__atomic_fetch_and(&_queue->userNotify, ~kHelUserNotifyCqProgress, __ATOMIC_ACQUIRE);
-			if (check())
-				return;
-			auto e = helDriveQueue(_handle, kHelDriveWaitCqProgress);
-			if (e == kHelErrCancelled)
-				continue;
-			HEL_CHECK(e);
+		// Relaxed is enough here: if a relevant bit in notify is set, we will always go through
+		// the load-acquire on the fetch_and() code path and re-check a notification afterwards
+		// before we conclude that there is truly nothing pending anymore.
+		auto notify = __atomic_load_n(&_queue->userNotify, __ATOMIC_RELAXED);
+		while(true) {
+			// Note: notify is reloaded at the end of each iteration below.
+			_pendingNotify |= notify;
+
+			if (_pendingNotify & kHelUserNotifyCqProgress) {
+				auto progress = __atomic_load_n(&_chunks[_retrieveChunk]->progressFutex, __ATOMIC_ACQUIRE);
+				__ensure(!(progress & ~(kHelProgressMask | kHelProgressFull | kHelProgressDone)));
+				if (progress & kHelProgressFull)
+					__ensure(_retrieveChunk != _tailChunk);
+				if (_lastProgress != (progress & kHelProgressMask)) {
+					*done = false;
+					return;
+				} else if (progress & kHelProgressDone) {
+					__ensure(progress & kHelProgressFull);
+					*done = true;
+					return;
+				}
+			}
+
+			// If we get here, no relevant notifications are pending.
+			// Clear all relevant bits or wait in the kernel if all of them are already clear.
+			auto notifyToClear = notify & relevantNotify;
+			_pendingNotify &= ~relevantNotify;
+			if (!notifyToClear) {
+				__ensure(!(_pendingNotify & ~maskedNotify));
+
+				auto e = helDriveQueue(_handle, kHelDriveWait, maskedNotify);
+				if (e != kHelErrCancelled)
+					HEL_CHECK(e);
+				// Relaxed is enough (same reasoning as for the initial load).
+				notify = __atomic_load_n(&_queue->userNotify, __ATOMIC_RELAXED);
+			} else {
+				// Note that we will check all cleared notifications again in the next iteration.
+				// This RMW happens before the next progressFutex wait due to the load-acquire here.
+				notify = __atomic_fetch_and(&_queue->userNotify, ~notifyToClear, __ATOMIC_ACQUIRE);
+			}
 		}
 	}
 
@@ -242,6 +266,7 @@ private:
 	int _retrieveChunk;
 	int _tailChunk;
 	int _lastProgress;
+	int _pendingNotify;
 	// SQ state.
 	int _sqCurrentChunk;
 	int _sqProgress;
@@ -276,7 +301,7 @@ HelHandleResult *parseHandle(void *&element) {
 
 namespace mlibc {
 
-int sys_tcb_set(void *pointer) {
+int Sysdeps<TcbSet>::operator()(void *pointer) {
 #if defined(__x86_64__)
 	HEL_CHECK(helWriteFsBase(pointer));
 #elif defined(__aarch64__)
@@ -292,7 +317,7 @@ int sys_tcb_set(void *pointer) {
 	return 0;
 }
 
-int sys_open(const char *path, int flags, mode_t mode, int *fd) {
+int Sysdeps<Open>::operator()(const char *path, int flags, mode_t mode, int *fd) {
 	cacheFileTable();
 	HelAction actions[4];
 
@@ -357,7 +382,7 @@ int sys_open(const char *path, int flags, mode_t mode, int *fd) {
 	return 0;
 }
 
-int sys_seek(int fd, off_t offset, int whence, off_t *new_offset) {
+int Sysdeps<Seek>::operator()(int fd, off_t offset, int whence, off_t *new_offset) {
 	__ensure(whence == SEEK_SET);
 
 	cacheFileTable();
@@ -405,7 +430,7 @@ int sys_seek(int fd, off_t offset, int whence, off_t *new_offset) {
 	return 0;
 }
 
-int sys_read(int fd, void *data, size_t length, ssize_t *bytes_read) {
+int Sysdeps<Read>::operator()(int fd, void *data, size_t length, ssize_t *bytes_read) {
 	cacheFileTable();
 	auto lane = fileTable[fd];
 	HelAction actions[5];
@@ -462,7 +487,7 @@ int sys_read(int fd, void *data, size_t length, ssize_t *bytes_read) {
 	return 0;
 }
 
-int sys_vm_map(void *hint, size_t size, int prot, int flags, int fd, off_t offset, void **window) {
+int Sysdeps<VmMap>::operator()(void *hint, size_t size, int prot, int flags, int fd, off_t offset, void **window) {
 	cacheFileTable();
 	HelAction actions[3];
 
@@ -512,7 +537,7 @@ int sys_vm_map(void *hint, size_t size, int prot, int flags, int fd, off_t offse
 	return 0;
 }
 
-int sys_close(int fd) {
+int Sysdeps<Close>::operator()(int fd) {
 	cacheFileTable();
 	HelAction actions[3];
 
@@ -554,33 +579,48 @@ int sys_close(int fd) {
 	return 0;
 }
 
-int sys_futex_tid() {
+pid_t Sysdeps<FutexTid>::operator()() {
 	HelWord tid = 0;
 	HEL_CHECK(helSyscall0_1(kHelCallSuper + posix::superGetTid, &tid));
 
 	return tid;
 }
 
-int sys_futex_wait(int *pointer, int expected, const struct timespec *time) {
+int Sysdeps<FutexWait>::operator()(int *pointer, int expected, const struct timespec *time) {
 	// This implementation is inherently signal-safe.
+	int err = 0;
+
 	if (time) {
-		if (helFutexWait(pointer, expected, time->tv_nsec + time->tv_sec * 1000000000))
-			return -1;
-		return 0;
+		uint64_t tick;
+		HEL_CHECK(helGetClock(&tick));
+
+		err = helFutexWait(pointer, expected, tick + time->tv_nsec + time->tv_sec * 1000000000);
+	} else {
+		err = helFutexWait(pointer, expected, -1);
 	}
-	if (helFutexWait(pointer, expected, -1))
-		return -1;
-	return 0;
+
+	switch (err) {
+		case kHelErrNone: return 0;
+		case kHelErrTimeout: return ETIMEDOUT;
+		case kHelErrCancelled: return EINTR;
+		case kHelErrIllegalArgs: return EINVAL;
+		case kHelErrFutexRace: return EAGAIN;
+		default: {
+			mlibc::infoLogger() << "mlibc: helFutexWait returned unexpected error "
+								<< err << frg::endlog;
+			return EINVAL;
+		}
+	}
 }
 
-int sys_futex_wake(int *pointer, bool all) {
+int Sysdeps<FutexWake>::operator()(int *pointer, bool all) {
 	// This implementation is inherently signal-safe.
 	if (helFutexWake(pointer, all ? UINT32_MAX : 1))
 		return -1;
 	return 0;
 }
 
-int sys_vm_protect(void *pointer, size_t size, int prot) {
+int Sysdeps<VmProtect>::operator()(void *pointer, size_t size, int prot) {
 	managarm::posix::CntRequest<MemoryAllocator> req(getAllocator());
 	req.set_request_type(managarm::posix::CntReqType::VM_PROTECT);
 	req.set_address(reinterpret_cast<uintptr_t>(pointer));

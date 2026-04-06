@@ -11,21 +11,19 @@
 #include <math.h>
 
 #include <abi-bits/fcntl.h>
-
 #include <bits/ensure.h>
-
-#include <mlibc/lock.hpp>
+#include <frg/expected.hpp>
+#include <frg/mutex.hpp>
+#include <frg/printf.hpp>
+#include <mlibc/all-sysdeps.hpp>
 #include <mlibc/allocator.hpp>
+#include <mlibc/ctype.hpp>
 #include <mlibc/debug.hpp>
 #include <mlibc/file-io.hpp>
-#include <mlibc/locale.hpp>
-#include <mlibc/ansi-sysdeps.hpp>
-#include <mlibc/stdlib.hpp>
 #include <mlibc/global-config.hpp>
-#include <mlibc/ctype.hpp>
-#include <frg/mutex.hpp>
-#include <frg/expected.hpp>
-#include <frg/printf.hpp>
+#include <mlibc/locale.hpp>
+#include <mlibc/lock.hpp>
+#include <mlibc/stdlib.hpp>
 
 template<typename Char, typename F>
 struct PrintfAgent {
@@ -332,18 +330,18 @@ int fputws_unlocked(const wchar_t *__restrict ws, mlibc::abstract_file *f) {
 	}
 
 	char buf[512];
-	auto len = wcsrtombs(buf, (const wchar_t **__restrict)&ws, sizeof(buf), &f->_mbstate);
-	if (len == size_t(-1))
-		return -1;
 
-	while (ws && len) {
+	while (ws) {
+		auto len = wcsrtombs(buf, (const wchar_t **__restrict)&ws, sizeof(buf), &f->_mbstate);
+		if (len == size_t(-1))
+			return -1;
+
 		auto written = fwrite_unlocked_ignore_orientation(buf, 1, len, f);
 		if (written != len)
 			return 1;
 
-		len = wcsrtombs(buf, (const wchar_t **__restrict)&ws, sizeof(buf), &f->_mbstate);
-		if (len == size_t(-1))
-			return -1;
+		if (len == 0)
+			break;
 	}
 
 	return 1;
@@ -728,17 +726,16 @@ struct ResizePrinter {
 };
 
 int remove(const char *filename) {
-	MLIBC_CHECK_OR_ENOSYS(mlibc::sys_rmdir, -1);
-	if(int e = mlibc::sys_rmdir(filename); e) {
+	if(int e = mlibc::sysdep_or_enosys<Rmdir>(filename); e) {
 		if (e == ENOTDIR) {
-			MLIBC_CHECK_OR_ENOSYS(mlibc::sys_unlinkat, -1);
-			if(e = mlibc::sys_unlinkat(AT_FDCWD, filename, 0); e) {
+			if(e = mlibc::sysdep_or_enosys<Unlinkat>(AT_FDCWD, filename, 0); e) {
 				errno = e;
 				return -1;
 			}
 
 			return 0;
 		}
+		errno = e;
 		return -1;
 	}
 
@@ -746,8 +743,7 @@ int remove(const char *filename) {
 }
 
 int rename(const char *path, const char *new_path) {
-	MLIBC_CHECK_OR_ENOSYS(mlibc::sys_rename, -1);
-	if(int e = mlibc::sys_rename(path, new_path); e) {
+	if(int e = mlibc::sysdep_or_enosys<Rename>(path, new_path); e) {
 		errno = e;
 		return -1;
 	}
@@ -755,7 +751,7 @@ int rename(const char *path, const char *new_path) {
 }
 
 FILE *tmpfile(void) {
-	MLIBC_CHECK_OR_ENOSYS(mlibc::sys_unlinkat, nullptr);
+	MLIBC_CHECK_OR_ENOSYS(mlibc::IsImplemented<Unlinkat>, nullptr);
 
 	int fd = 0;
 	char pattern[] = "/tmp/tmpfile_XXXXXX";
@@ -763,9 +759,9 @@ FILE *tmpfile(void) {
 	if (res)
 		return nullptr;
 
-	res = mlibc::sys_unlinkat(AT_FDCWD, pattern, 0);
+	res = mlibc::sysdep_or_panic<Unlinkat>(AT_FDCWD, pattern, 0);
 	if (res) {
-		mlibc::sys_close(fd);
+		mlibc::sysdep<Close>(fd);
 		errno = res;
 		return nullptr;
 	}
@@ -784,9 +780,9 @@ char *tmpnam(char *buf) {
 			return nullptr;
 
 		int fd;
-		ret = mlibc::sys_open(result, O_RDONLY, 0666, &fd);
+		ret = mlibc::sysdep<Open>(result, O_RDONLY, 0666, &fd);
 		if (ret == 0) {
-			mlibc::sys_close(fd);
+			mlibc::sysdep<Close>(fd);
 		} else {
 			return result;
 		}
@@ -801,8 +797,8 @@ FILE *freopen(const char *__restrict path, const char *__restrict mode, FILE *__
 	auto file = static_cast<mlibc::abstract_file *>(f);
 	frg::unique_lock lock(file->_lock);
 
-	if(file->reopen(path, mode) == -1) {
-		errno = EINVAL;
+	if(int e = file->reopen(path, mode); e) {
+		errno = e;
 		return nullptr;
 	}
 
@@ -824,6 +820,7 @@ void setbuffer(FILE *f, char *buf, size_t size) {
 
 // byte-oriented (POSIX)
 int fprintf(FILE *__restrict stream, const char *__restrict format, ...) {
+	// orientation checking in vfprintf
 	va_list args;
 	va_start(args, format);
 	int result = vfprintf(stream, format, args);
@@ -833,6 +830,7 @@ int fprintf(FILE *__restrict stream, const char *__restrict format, ...) {
 
 // byte-oriented (POSIX)
 int fscanf(FILE *__restrict stream, const char *__restrict format, ...) {
+	// orientation checking in vfscanf
 	va_list args;
 	va_start(args, format);
 	int result = vfscanf(stream, format, args);
@@ -842,6 +840,7 @@ int fscanf(FILE *__restrict stream, const char *__restrict format, ...) {
 
 // byte-oriented (POSIX)
 int printf(const char *__restrict format, ...) {
+	// orientation checking in vfprintf
 	va_list args;
 	va_start(args, format);
 	int result = vfprintf(stdout, format, args);
@@ -1656,6 +1655,7 @@ int do_scanf(H &handler, const Char *fmt, __builtin_va_list args) {
 
 // byte-oriented (POSIX)
 int scanf(const char *__restrict format, ...) {
+	// orientation checking in vfscanf
 	va_list args;
 	va_start(args, format);
 	int result = vfscanf(stdin, format, args);
@@ -1691,6 +1691,13 @@ int sscanf(const char *__restrict buffer, const char *__restrict format, ...) {
 
 // byte-oriented (POSIX)
 int vfprintf(FILE *__restrict stream, const char *__restrict format, __builtin_va_list args) {
+	auto f = static_cast<mlibc::abstract_file *>(stream);
+	if (!f->check_orientation(mlibc::stream_orientation::byte)) {
+		f->__status_bits |= __MLIBC_ERROR_BIT;
+		errno = EIO;
+		return -1;
+	}
+
 	frg::va_struct vs;
 	frg::arg arg_list[NL_ARGMAX + 1];
 	vs.arg_list = arg_list;
@@ -1712,6 +1719,12 @@ int vfprintf(FILE *__restrict stream, const char *__restrict format, __builtin_v
 int vfscanf(FILE *__restrict stream, const char *__restrict format, __builtin_va_list args) {
 	auto file = static_cast<mlibc::abstract_file *>(stream);
 	frg::unique_lock lock(file->_lock);
+
+	if (!file->check_orientation(mlibc::stream_orientation::byte)) {
+		file->__status_bits |= __MLIBC_ERROR_BIT;
+		errno = EIO;
+		return -1;
+	}
 
 	struct {
 		char look_ahead() {
@@ -1741,10 +1754,12 @@ int vfscanf(FILE *__restrict stream, const char *__restrict format, __builtin_va
 
 // byte-oriented (POSIX)
 int vprintf(const char *__restrict format, __builtin_va_list args){
+	// orientation checking in vfprintf
 	return vfprintf(stdout, format, args);
 }
 
 int vscanf(const char *__restrict format, __builtin_va_list args) {
+	// orientation checking in vfscanf
 	return vfscanf(stdin, format, args);
 }
 
@@ -1909,7 +1924,7 @@ int vswprintf(wchar_t *__restrict buffer, size_t n, const wchar_t *__restrict fo
 		errno = EINVAL;
 		return -1;
 	} else if (p.count >= n) {
-		errno = E2BIG;
+		errno = EOVERFLOW;
 		return -1;
 	}
 	if (n)
@@ -1965,6 +1980,13 @@ int vwscanf(const wchar_t *__restrict format, __builtin_va_list args) {
 
 // byte-oriented (POSIX)
 int fgetc(FILE *stream) {
+	auto f = static_cast<mlibc::abstract_file *>(stream);
+	if (!f->check_orientation(mlibc::stream_orientation::byte)) {
+		f->__status_bits |= __MLIBC_ERROR_BIT;
+		errno = EIO;
+		return EOF;
+	}
+
 	char c;
 	auto bytes_read = fread(&c, 1, 1, stream);
 	if(bytes_read != 1)
@@ -2154,7 +2176,7 @@ wint_t getwc(FILE *stream) {
 
 // wide-oriented (POSIX)
 wint_t getwchar(void) {
-	auto file = static_cast<mlibc::abstract_file *>(stdout);
+	auto file = static_cast<mlibc::abstract_file *>(stdin);
 	frg::unique_lock lock(file->_lock);
 	return fgetwc_unlocked(file);
 }
@@ -2185,6 +2207,13 @@ wint_t ungetwc(wint_t c, FILE *stream) {
 size_t fread(void *buffer, size_t size, size_t count, FILE *file_base) {
 	auto file = static_cast<mlibc::abstract_file *>(file_base);
 	frg::unique_lock lock(file->_lock);
+
+	if (!file->check_orientation(mlibc::stream_orientation::byte)) {
+		file->__status_bits |= __MLIBC_ERROR_BIT;
+		errno = EIO;
+		return EOF;
+	}
+
 	return fread_unlocked(buffer, size, count, file_base);
 }
 
@@ -2192,6 +2221,13 @@ size_t fread(void *buffer, size_t size, size_t count, FILE *file_base) {
 size_t fwrite(const void *buffer, size_t size , size_t count, FILE *file_base) {
 	auto file = static_cast<mlibc::abstract_file *>(file_base);
 	frg::unique_lock lock(file->_lock);
+
+	if (!file->check_orientation(mlibc::stream_orientation::byte)) {
+		file->__status_bits |= __MLIBC_ERROR_BIT;
+		errno = EIO;
+		return EOF;
+	}
+
 	return fwrite_unlocked(buffer, size, count, file_base);
 }
 
