@@ -97,6 +97,19 @@ namespace mlibc {
         return sysdep<Mkdirat>(AT_FDCWD, path, mode);
     }
 
+    int Sysdeps<Renameat>::operator()(int olddirfd, const char *old_path, int newdirfd, const char *new_path) {
+        long ret = syscall4(SYS_RENAME, olddirfd, (long) old_path, newdirfd, (long) new_path);
+        if (ret < 0) {
+            return -ret;
+        }
+
+        return 0;
+    }
+
+    int Sysdeps<Rename>::operator()(const char *old_path, const char *new_path) {
+        return sysdep<Renameat>(AT_FDCWD, old_path, AT_FDCWD, new_path);
+    }
+
     int Sysdeps<Unlinkat>::operator()(int fd, const char *path, int flags) {
         (void) flags;
 
@@ -490,5 +503,21 @@ namespace mlibc {
     [[noreturn]] void Sysdeps<LibcPanic>::operator()() {
         sysdep<LibcLog>("mlibc: panic");
         sysdep<Exit>(1);
+    }
+
+    uid_t Sysdeps<GetUid>::operator()(void) {
+        return 0;
+    }
+
+    uid_t Sysdeps<GetEuid>::operator()(void) {
+        return 0;
+    }
+
+    gid_t Sysdeps<GetGid>::operator()(void) {
+        return 0;
+    }
+
+    gid_t Sysdeps<GetEgid>::operator()(void) {
+        return 0;
     }
 } // namespace mlibc

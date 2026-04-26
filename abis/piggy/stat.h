@@ -45,6 +45,7 @@ struct stat {
     dev_t st_dev;
     ino_t st_ino;
     mode_t st_mode;
+    nlink_t st_nlink;
     dev_t st_rdev;
     off_t st_size;
     blksize_t st_blksize;
@@ -55,7 +56,6 @@ struct stat {
     /* NOT IMPLEMENTED */
     uid_t st_uid;
     gid_t st_gid;
-    nlink_t st_nlink;
     unsigned int _padding;
 };
 
