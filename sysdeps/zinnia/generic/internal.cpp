@@ -49,8 +49,8 @@ int Sysdeps<FutexWait>::operator()(int *pointer, int expected, const struct time
 	return zinnia_syscall(SYSCALL_FUTEX_WAIT, (size_t)pointer, expected, (size_t)time).error;
 }
 
-int Sysdeps<FutexWake>::operator()(int *pointer, bool) {
-	return zinnia_syscall(SYSCALL_FUTEX_WAKE, (size_t)pointer).error;
+int Sysdeps<FutexWake>::operator()(int *pointer, bool all) {
+	return zinnia_syscall(SYSCALL_FUTEX_WAKE, (size_t)pointer, all).error;
 }
 
 int Sysdeps<AnonAllocate>::operator()(size_t size, void **pointer) {
@@ -141,6 +141,10 @@ int Sysdeps<VmUnmap>::operator()(void *pointer, size_t size) {
 
 int Sysdeps<VmProtect>::operator()(void *pointer, size_t size, int prot) {
 	return zinnia_syscall(SYSCALL_MPROTECT, (size_t)pointer, size, prot).error;
+}
+
+int Sysdeps<Msync>::operator()(void *addr, size_t length, int flags) {
+	return zinnia_syscall(SYSCALL_MSYNC, (size_t)addr, length, flags).error;
 }
 
 } // namespace mlibc

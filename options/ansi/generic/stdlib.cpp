@@ -146,7 +146,7 @@ void *calloc(size_t count, size_t size) {
 	// we want to ensure that count*size > SIZE_MAX doesn't happen
 	// to prevent overflowing, we divide both sides of the inequality by size and check with that
 	if(size && count > (SIZE_MAX / size)) {
-		errno = EINVAL;
+		errno = ENOMEM;
 		return nullptr;
 	}
 
@@ -469,7 +469,7 @@ int mbtowc(wchar_t *__restrict wc, const char *__restrict mb, size_t max_size) {
 					return nseq.it - mb;
 				}
 				case mlibc::transcode_status::illegal_input: {
-					errno = -EILSEQ;
+					errno = EILSEQ;
 					return -1;
 				}
 				case mlibc::transcode_status::output_overflow: {

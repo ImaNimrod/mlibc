@@ -22,7 +22,7 @@ struct msghdr {
 
 struct mmsghdr {
 	struct msghdr msg_hdr;
-	unsigned int  msg_len;
+	unsigned int msg_len;
 };
 
 struct cmsghdr {
@@ -43,13 +43,13 @@ struct cmsghdr {
 
 #define SCM_CREDENTIALS 0x02
 
-#define SOCK_DGRAM     (1 << 0)
-#define SOCK_RAW       (1 << 1)
-#define SOCK_STREAM    (1 << 2)
+#define SOCK_DGRAM (1 << 0)
+#define SOCK_RAW (1 << 1)
+#define SOCK_STREAM (1 << 2)
 #define SOCK_SEQPACKET (1 << 3)
-#define SOCK_NONBLOCK  (1 << 15)
-#define SOCK_CLOEXEC   (1 << 16)
-#define SOCK_CLOFORK   (1 << 17)
+#define SOCK_NONBLOCK (1 << 15)
+#define SOCK_CLOEXEC (1 << 16)
+#define SOCK_CLOFORK (1 << 17)
 
 #define SOL_SOCKET 1
 #define SOL_IPV6 41
@@ -110,33 +110,31 @@ struct cmsghdr {
 
 /* GNU (?) extension: Protocol family constants. */
 
+#define PF_UNSPEC 0
 #define PF_INET 1
 #define PF_INET6 2
 #define PF_UNIX 3
 #define PF_LOCAL 3
-#define PF_UNSPEC 4
-#define PF_NETLINK 5
-#define PF_BRIDGE 6
-#define PF_APPLETALK 7
-#define PF_BLUETOOTH 8
-#define PF_DECnet 9
-#define PF_IPX 10
-#define PF_ISDN 11
-#define PF_SNA 12
-#define PF_PACKET 13
-#define PF_AX25 14
-#define PF_NETROM 15
-#define PF_ROSE 16
-#define PF_TIPC 30
-#define PF_ALG 38
-#define PF_MAX 46
+#define PF_BRIDGE 4
+#define PF_APPLETALK 5
+#define PF_BLUETOOTH 6
+#define PF_DECnet 7
+#define PF_IPX 8
+#define PF_ISDN 9
+#define PF_SNA 10
+#define PF_PACKET 11
+#define PF_AX25 12
+#define PF_NETROM 13
+#define PF_ROSE 14
+#define PF_TIPC 15
+#define PF_ALG 16
+#define PF_MAX 31
 
+#define AF_UNSPEC PF_UNSPEC
 #define AF_INET PF_INET
 #define AF_INET6 PF_INET6
 #define AF_UNIX PF_UNIX
 #define AF_LOCAL PF_LOCAL
-#define AF_UNSPEC PF_UNSPEC
-#define AF_NETLINK PF_NETLINK
 #define AF_BRIDGE PF_BRIDGE
 #define AF_APPLETALK PF_APPLETALK
 #define AF_BLUETOOTH PF_BLUETOOTH
@@ -144,7 +142,6 @@ struct cmsghdr {
 #define AF_IPX PF_IPX
 #define AF_ISDN PF_ISDN
 #define AF_SNA PF_SNA
-#define AF_PACKET PF_PACKET
 #define AF_PACKET PF_PACKET
 #define AF_AX25 PF_AX25
 #define AF_NETROM PF_NETROM
@@ -154,6 +151,6 @@ struct cmsghdr {
 #define AF_MAX PF_MAX
 
 #define SHUT_RD 1
-#define SHUT_RDWR 2
-#define SHUT_WR 3
+#define SHUT_WR 2
+#define SHUT_RDWR (SHUT_RD | SHUT_WR)
 #endif

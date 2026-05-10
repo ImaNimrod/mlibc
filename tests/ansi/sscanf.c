@@ -32,6 +32,8 @@ struct format_test_cases {
 #if !defined(USE_HOST_LIBC) && !defined(USE_CROSS_LIBC)
 	{"%b", "0b1011", 0b1011, T_UINT, 1},
 	{"%b", "0B1011", 0b1011, T_UINT, 1},
+	{"%b", "+0b1011", 0b1011, T_UINT, 1},
+	{"%b", "-0b1011", -0b1011, T_UINT, 1},
 #endif
 	{"%%", "%", 0, T_NONE, 0},
 	{"%c", "         I am not a fan of this solution.", ' ', T_CHAR, 1},
@@ -517,6 +519,7 @@ int main() {
 	assert(sscanf("0xabcdef12", "%p", &ptr) == 1);
 	assert(ptr == (void*)0xabcdef12);
 #endif
+	assert(sscanf("0x123", "%*p") == 0);
 
 	assert(sscanf("a", "%*c") == 0);
 	char_value[2] = 'q';

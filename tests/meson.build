@@ -51,6 +51,7 @@ all_test_cases = [
 	'ansi/wctrans',
 	'ansi/nanosleep',
 	'ansi/btowc',
+	'ansi/wctob',
 	'bsd/ns_get_put',
 	'bsd/reallocarray',
 	'bsd/strl',
@@ -152,6 +153,10 @@ all_test_cases = [
 	'posix/wcpcpy',
 	'posix/wcpncpy',
 	'posix/getwchar',
+	'posix/strcoll_l',
+	'posix/strxfrm_l',
+	'posix/wcscoll_l',
+	'posix/wcsxfrm_l',
 	'glibc/getopt',
 	'glibc/ffsl-ffsll',
 	'glibc/error_message_count',
@@ -165,6 +170,7 @@ all_test_cases = [
 	'glibc/strverscmp',
 	'glibc/memmem',
 	'glibc/stdio_ext',
+	'glibc/_dl_find_object',
 	'linux/xattr',
 	'linux/pthread_setname_np',
 	'linux/pthread_attr',
@@ -216,6 +222,10 @@ host_libc_noasan_test_cases = [
 	'posix/locale', # encounters memory leaks
 	'ansi/calloc', # does some overflowing
 	'linux/pthread_attr', # encounters memory leaks
+	'posix/strcoll_l', # glibc leaks memory internally
+	'posix/wcscoll_l', # glibc leaks memory internally
+	'posix/strxfrm_l', # glibc leaks memory internally
+	'posix/wcsxfrm_l', # glibc leaks memory internally
 ]
 
 cross_libc_excluded_test_cases = [

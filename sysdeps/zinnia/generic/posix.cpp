@@ -450,7 +450,7 @@ int Sysdeps<GetPriority>::operator()(int which, id_t who, int *value) {
 }
 
 int Sysdeps<SetPriority>::operator()(int which, id_t who, int prio) {
-	return zinnia_syscall(SYSCALL_GETPRIORITY, which, who, prio).error;
+	return zinnia_syscall(SYSCALL_SETPRIORITY, which, who, prio).error;
 }
 
 int Sysdeps<GetParam>::operator()(pid_t pid, struct sched_param *param) {
@@ -458,7 +458,7 @@ int Sysdeps<GetParam>::operator()(pid_t pid, struct sched_param *param) {
 }
 
 int Sysdeps<SetParam>::operator()(pid_t pid, const struct sched_param *param) {
-	return zinnia_syscall(SYSCALL_SCHED_GETPARAM, pid, (size_t)param).error;
+	return zinnia_syscall(SYSCALL_SCHED_SETPARAM, pid, (size_t)param).error;
 }
 
 int Sysdeps<GetCwd>::operator()(char *buffer, size_t size) {
@@ -526,7 +526,7 @@ int Sysdeps<Fcntl>::operator()(int fd, int request, va_list args, int *result) {
 int Sysdeps<Ttyname>::operator()(int fd, char *buf, size_t size) {
 	if (size >= __MLIBC_NAME_MAX) {
 		mlibc::panicLogger() << "ttyname size too small" << frg::endlog;
-		__builtin_unreachable();
+		return ERANGE;
 	}
 
 	int res;
@@ -548,7 +548,7 @@ int Sysdeps<Fchmod>::operator()(int fd, mode_t mode) {
 }
 
 int Sysdeps<Fchmodat>::operator()(int fd, const char *pathname, mode_t mode, int flags) {
-	return zinnia_syscall(SYSCALL_FCHMOD, fd, (size_t)pathname, mode, flags).error;
+	return zinnia_syscall(SYSCALL_FCHMODAT, fd, (size_t)pathname, mode, flags).error;
 }
 
 int Sysdeps<Utimensat>::operator()(
@@ -641,10 +641,17 @@ int Sysdeps<Sigprocmask>::operator()(
 	return zinnia_syscall(SYSCALL_SIGPROCMASK, how, (size_t)set, (size_t)retrieve).error;
 }
 
+extern "C" void __mlibc_restorer();
+
 int Sysdeps<Sigaction>::operator()(
     int sig, const struct sigaction *__restrict act, struct sigaction *__restrict oact
 ) {
-	return zinnia_syscall(SYSCALL_SIGACTION, sig, (size_t)act, (size_t)oact).error;
+	if (act != nullptr) {
+		struct sigaction modified = *act;
+		modified.sa_restorer = __mlibc_restorer;
+		return zinnia_syscall(SYSCALL_SIGACTION, sig, (size_t)&modified, (size_t)oact).error;
+	}
+	return zinnia_syscall(SYSCALL_SIGACTION, sig, 0, (size_t)oact).error;
 }
 
 int Sysdeps<Sigtimedwait>::operator()(
@@ -676,7 +683,10 @@ int Sysdeps<GetHostname>::operator()(char *buffer, size_t bufsize) {
 }
 
 int Sysdeps<SetHostname>::operator()(const char *buffer, size_t bufsize) {
-	struct utsname name = {};
+	struct utsname name;
+	int i = sysdep<Uname>(&name);
+	if (i)
+		return i;
 	if (bufsize >= sizeof(name.nodename))
 		bufsize = sizeof(name.nodename) - 1;
 	memcpy(name.nodename, buffer, bufsize);

@@ -111,7 +111,7 @@ size_t mbsrtowcs(wchar_t *__restrict __wcs, const char **__restrict __mbs, size_
 size_t mbsnrtowcs(wchar_t *__restrict __wcs, const char **__restrict __mbs, size_t __mb_limit, size_t __wc_limit,
 		mbstate_t *__restrict __stp);
 size_t wcsrtombs(char *__restrict __mbs, const wchar_t **__restrict __wcs, size_t __mb_limit, mbstate_t *__restrict __stp);
-size_t wcsnrtombs(char *__restrict __mbs, const wchar_t **__restrict __wcs, size_t __mb_limit, size_t __wc_limit,
+size_t wcsnrtombs(char *__restrict __mbs, const wchar_t **__restrict __wcs, size_t __wc_limit, size_t __mb_limit,
 		mbstate_t *__restrict __stp);
 
 /* POSIX extensions */
@@ -136,6 +136,9 @@ size_t wcslcpy(wchar_t *__restrict __dst, const wchar_t *__restrict __src, size_
 
 wchar_t *wcpcpy(wchar_t *__restrict __ws1, const wchar_t *__restrict __ws2);
 wchar_t *wcpncpy(wchar_t *__restrict __ws1, const wchar_t *__restrict __ws2, size_t __n);
+
+int wcscoll_l(const wchar_t *__l, const wchar_t *__r, locale_t __loc);
+size_t wcsxfrm_l(wchar_t *__restrict __dest, const wchar_t *__restrict __src, size_t __size, locale_t __loc);
 
 #endif /* __MLIBC_POSIX_OPTION */
 
