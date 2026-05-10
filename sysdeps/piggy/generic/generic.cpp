@@ -152,6 +152,26 @@ namespace mlibc {
         return 0;
     }
 
+    int Sysdeps<Pread>::operator()(int fd, void *buf, size_t count, off_t offset, ssize_t *bytes_read) {
+        long ret = syscall4(SYS_PREAD, fd, (long) buf, count, offset);
+        if (ret < 0) {
+            return -ret;
+        }
+
+        *bytes_read = ret;
+        return 0;
+    }
+
+    int Sysdeps<Pwrite>::operator()(int fd, const void *buf, size_t count, off_t offset, ssize_t *bytes_written) {
+        long ret = syscall4(SYS_PWRITE, fd, (long) buf, count, offset);
+        if (ret < 0) {
+            return -ret;
+        }
+
+        *bytes_written = ret;
+        return 0;
+    }
+
     int Sysdeps<Ioctl>::operator()(int fd, unsigned long request, void *arg, int *result) {
         long ret = syscall3(SYS_IOCTL, fd, request, (long) arg);
         if (ret < 0) {
@@ -503,6 +523,12 @@ namespace mlibc {
     [[noreturn]] void Sysdeps<LibcPanic>::operator()() {
         sysdep<LibcLog>("mlibc: panic");
         sysdep<Exit>(1);
+    }
+
+    int Sysdeps<Access>::operator()(const char *path, int mode) {
+        (void) path;
+        (void) mode;
+        return 0;
     }
 
     uid_t Sysdeps<GetUid>::operator()(void) {
