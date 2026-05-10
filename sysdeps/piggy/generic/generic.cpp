@@ -97,6 +97,19 @@ namespace mlibc {
         return sysdep<Mkdirat>(AT_FDCWD, path, mode);
     }
 
+    int Sysdeps<Renameat>::operator()(int olddirfd, const char *old_path, int newdirfd, const char *new_path) {
+        long ret = syscall4(SYS_RENAME, olddirfd, (long) old_path, newdirfd, (long) new_path);
+        if (ret < 0) {
+            return -ret;
+        }
+
+        return 0;
+    }
+
+    int Sysdeps<Rename>::operator()(const char *old_path, const char *new_path) {
+        return sysdep<Renameat>(AT_FDCWD, old_path, AT_FDCWD, new_path);
+    }
+
     int Sysdeps<Unlinkat>::operator()(int fd, const char *path, int flags) {
         (void) flags;
 
@@ -131,6 +144,26 @@ namespace mlibc {
 
     int Sysdeps<Write>::operator()(int fd, const void *buf, size_t count, ssize_t *bytes_written) {
         long ret = syscall3(SYS_WRITE, fd, (long) buf, count);
+        if (ret < 0) {
+            return -ret;
+        }
+
+        *bytes_written = ret;
+        return 0;
+    }
+
+    int Sysdeps<Pread>::operator()(int fd, void *buf, size_t count, off_t offset, ssize_t *bytes_read) {
+        long ret = syscall4(SYS_PREAD, fd, (long) buf, count, offset);
+        if (ret < 0) {
+            return -ret;
+        }
+
+        *bytes_read = ret;
+        return 0;
+    }
+
+    int Sysdeps<Pwrite>::operator()(int fd, const void *buf, size_t count, off_t offset, ssize_t *bytes_written) {
+        long ret = syscall4(SYS_PWRITE, fd, (long) buf, count, offset);
         if (ret < 0) {
             return -ret;
         }
@@ -490,5 +523,27 @@ namespace mlibc {
     [[noreturn]] void Sysdeps<LibcPanic>::operator()() {
         sysdep<LibcLog>("mlibc: panic");
         sysdep<Exit>(1);
+    }
+
+    int Sysdeps<Access>::operator()(const char *path, int mode) {
+        (void) path;
+        (void) mode;
+        return 0;
+    }
+
+    uid_t Sysdeps<GetUid>::operator()(void) {
+        return 0;
+    }
+
+    uid_t Sysdeps<GetEuid>::operator()(void) {
+        return 0;
+    }
+
+    gid_t Sysdeps<GetGid>::operator()(void) {
+        return 0;
+    }
+
+    gid_t Sysdeps<GetEgid>::operator()(void) {
+        return 0;
     }
 } // namespace mlibc

@@ -17,11 +17,15 @@ struct PiggySysdepTags :
     OpenDir,
     Mkdirat,
     Mkdir,
+    Renameat,
+    Rename,
     Unlinkat,
     Rmdir,
     Close,
     Read,
     Write,
+    Pread,
+    Pwrite,
     Ioctl,
     Seek,
     Stat,
@@ -60,7 +64,12 @@ struct PiggySysdepTags :
     AnonFree,
     LibcLog,
     LibcPanic,
-    PrepareStack
+    PrepareStack,
+    Access,
+    GetUid,
+    GetEuid,
+    GetGid,
+    GetEgid
 {};
 
 template<typename Tag>
