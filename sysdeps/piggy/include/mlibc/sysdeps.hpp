@@ -49,6 +49,7 @@ struct PiggySysdepTags :
     Pipe,
     Sleep,
     ClockGet,
+    ClockGetres,
     ClockSet,
     Clone,
     ThreadExit,
