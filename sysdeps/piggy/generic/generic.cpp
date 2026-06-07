@@ -51,6 +51,14 @@ namespace mlibc {
         return 0;
     }
 
+    int Sysdeps<Kill>::operator()(pid_t pid, int signal) {
+        long ret = syscall2(SYS_KILL, pid, signal);
+        if (ret < 0) {
+            return -ret;
+        }
+        return 0;
+    }
+
     pid_t Sysdeps<GetPid>::operator()(void) {
         return syscall0(SYS_GETPID);
     }
@@ -61,6 +69,10 @@ namespace mlibc {
 
     pid_t Sysdeps<GetTid>::operator()(void) {
         return syscall0(SYS_GETTID);
+    }
+
+    void Sysdeps<Yield>::operator()(void) {
+        syscall0(SYS_YIELD);
     }
 
     int Sysdeps<Openat>::operator()(int dirfd, const char *path, int flags, mode_t mode, int *fd) {
@@ -427,6 +439,63 @@ namespace mlibc {
         return 0;
     }
 
+	#ifndef MLIBC_BUILDING_RTLD
+
+	extern "C" void __mlibc_restorer();
+
+    int Sysdeps<Sigaction>::operator()(int signal, const struct sigaction *__restrict act, struct sigaction *__restrict oldact) {
+        if (act != nullptr) {
+            struct sigaction modified = *act;
+            modified.sa_restorer = __mlibc_restorer;
+
+            long ret = syscall3(SYS_SIGACTION, signal, (long) &modified, (long) oldact);
+            if (ret < 0) {
+                return -ret;
+            }
+            return 0;
+        }
+
+        long ret = syscall3(SYS_SIGACTION, signal, 0, (long) oldact);
+        if (ret < 0) {
+            return -ret;
+        }
+        return 0;
+    }
+
+    #endif
+
+    int Sysdeps<Sigaltstack>::operator()(const stack_t *__restrict ss, stack_t *__restrict oldss) {
+        long ret = syscall2(SYS_SIGALTSTACK, (long) ss, (long) oldss);
+        if (ret < 0) {
+            return -ret;
+        }
+        return 0;
+    }
+
+    int Sysdeps<Sigpending>::operator()(sigset_t *set) {
+        long ret = syscall1(SYS_SIGPENDING, (long) set);
+        if (ret < 0) {
+            return -ret;
+        }
+        return 0;
+    }
+
+    int Sysdeps<Sigprocmask>::operator()(int how, const sigset_t *__restrict set, sigset_t *__restrict retrieve) {
+        long ret = syscall3(SYS_SIGPROCMASK, how, (long) set, (long) retrieve);
+        if (ret < 0) {
+            return -ret;
+        }
+        return 0;
+    }
+
+    int Sysdeps<Sigsuspend>::operator()(const sigset_t *mask) {
+        long ret = syscall1(SYS_SIGSUSPEND, (long) mask);
+        if (ret < 0) {
+            return -ret;
+        }
+        return 0;
+    }
+
 #ifndef MLIBC_BUILDING_RTLD
 
     extern "C" void __mlibc_thread_entry();
@@ -481,6 +550,17 @@ namespace mlibc {
             return -ret;
         }
         return 0;
+    }
+
+    int Sysdeps<Pause>::operator()(void) {
+        sigset_t mask;
+
+        int ret = 0;
+        if ((ret = sysdep<Sigprocmask>(0, NULL, &mask)) != 0) {
+            return ret;
+        }
+
+        return sysdep<Sigsuspend>(&mask);
     }
 
     int Sysdeps<TcbSet>::operator()(void *pointer) {
