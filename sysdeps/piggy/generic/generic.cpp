@@ -67,6 +67,24 @@ namespace mlibc {
         return syscall0(SYS_GETPPID);
     }
 
+    pid_t Sysdeps<GetPgid>::operator()(pid_t pid, pid_t *pgid) {
+        long ret = syscall1(SYS_GETPGID, pid);
+        if (ret < 0) {
+            return -ret;
+        }
+
+        *pgid = ret;
+        return 0;
+    }
+
+    int Sysdeps<SetPgid>::operator()(pid_t pgid, pid_t pid) {
+        long ret = syscall2(SYS_SETPGID, pid, pgid);
+        if (ret < 0) {
+            return -ret;
+        }
+        return 0;
+    }
+
     pid_t Sysdeps<GetTid>::operator()(void) {
         return syscall0(SYS_GETTID);
     }

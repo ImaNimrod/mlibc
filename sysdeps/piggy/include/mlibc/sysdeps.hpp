@@ -12,6 +12,8 @@ struct PiggySysdepTags :
     Kill,
     GetPid,
     GetPpid,
+    GetPgid,
+    SetPgid,
     GetTid,
     Yield,
     Openat,
