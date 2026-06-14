@@ -140,6 +140,46 @@ namespace mlibc {
         return sysdep<Renameat>(AT_FDCWD, old_path, AT_FDCWD, new_path);
     }
 
+    int Sysdeps<Linkat>::operator()(int olddirfd, const char *old_path, int newdirfd, const char *new_path, int flags) {
+        (void) flags;
+
+        long ret = syscall4(SYS_LINK, olddirfd, (long) old_path, newdirfd, (long) new_path);
+        if (ret < 0) {
+            return -ret;
+        }
+        return 0;
+    }
+
+    int Sysdeps<Link>::operator()(const char *old_path, const char *new_path) {
+        return sysdep<Linkat>(AT_FDCWD, old_path, AT_FDCWD, new_path, 0);
+    }
+
+    int Sysdeps<Symlinkat>::operator()(const char *target_path, int dirfd, const char *link_path) {
+        long ret = syscall3(SYS_SYMLINK, dirfd, (long) link_path, (long) target_path);
+        if (ret < 0) {
+            return -ret;
+        }
+        return 0;
+    }
+
+    int Sysdeps<Symlink>::operator()(const char *target_path, const char *link_path) {
+        return sysdep<Symlinkat>(target_path, AT_FDCWD, link_path);
+    }
+
+    int Sysdeps<Readlinkat>::operator()(int dirfd, const char *path, void *buf, size_t max_size, ssize_t *length) {
+        long ret = syscall4(SYS_READLINK, dirfd, (long) path, (long) buf, (long) max_size);
+        if (ret < 0) {
+            return -ret;
+        }
+
+        *length = ret;
+        return 0;
+    }
+
+    int Sysdeps<Readlink>::operator()(const char *path, void *buf, size_t max_size, ssize_t *length) {
+        return sysdep<Readlinkat>(AT_FDCWD, path, buf, max_size, length);
+    }
+
     int Sysdeps<Unlinkat>::operator()(int fd, const char *path, int flags) {
         (void) flags;
 

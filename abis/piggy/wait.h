@@ -11,4 +11,8 @@
 #define WIFSTOPPED(x)   (((x) & 0xff) == 0x7f)
 #define WIFCONTINUED(x) ((x) == 0xffff)
 
+/* NOT IMPLEMENTED BUT NEEDED TO COMPILE */
+#define WUNTRACED   0
+#define WCONTINUED  0
+
 #endif /*_ABIBITS_WAIT_H */
