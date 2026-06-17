@@ -27,11 +27,12 @@
 
 #define AT_FDCWD -100
 
-#define AT_EMPTY_PATH   (1 << 0)
+#define AT_EMPTY_PATH       (1 << 0)
+#define AT_SYMLINK_NOFOLLOW (1 << 1)
 
 /* NOT IMPLEMENTED BUT NEEDED TO COMPILE */
-#define O_NOCTTY    0
 #define O_NOFOLLOW  0
+#define O_NOCTTY    0
 #define O_TMPFILE   0
 
 #define F_RDLCK 0
@@ -44,7 +45,6 @@
 #define F_SETLKW    -1
 #define F_SETLKW64  F_SETLKW
 
-#define AT_SYMLINK_NOFOLLOW 0
 #define AT_REMOVEDIR        0
 #define AT_SYMLINK_FOLLOW   0
 #define AT_EACCESS          0

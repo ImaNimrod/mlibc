@@ -51,6 +51,14 @@ namespace mlibc {
         return 0;
     }
 
+    int Sysdeps<Kill>::operator()(pid_t pid, int signal) {
+        long ret = syscall2(SYS_KILL, pid, signal);
+        if (ret < 0) {
+            return -ret;
+        }
+        return 0;
+    }
+
     pid_t Sysdeps<GetPid>::operator()(void) {
         return syscall0(SYS_GETPID);
     }
@@ -59,8 +67,30 @@ namespace mlibc {
         return syscall0(SYS_GETPPID);
     }
 
+    pid_t Sysdeps<GetPgid>::operator()(pid_t pid, pid_t *pgid) {
+        long ret = syscall1(SYS_GETPGID, pid);
+        if (ret < 0) {
+            return -ret;
+        }
+
+        *pgid = ret;
+        return 0;
+    }
+
+    int Sysdeps<SetPgid>::operator()(pid_t pgid, pid_t pid) {
+        long ret = syscall2(SYS_SETPGID, pid, pgid);
+        if (ret < 0) {
+            return -ret;
+        }
+        return 0;
+    }
+
     pid_t Sysdeps<GetTid>::operator()(void) {
         return syscall0(SYS_GETTID);
+    }
+
+    void Sysdeps<Yield>::operator()(void) {
+        syscall0(SYS_YIELD);
     }
 
     int Sysdeps<Openat>::operator()(int dirfd, const char *path, int flags, mode_t mode, int *fd) {
@@ -108,6 +138,46 @@ namespace mlibc {
 
     int Sysdeps<Rename>::operator()(const char *old_path, const char *new_path) {
         return sysdep<Renameat>(AT_FDCWD, old_path, AT_FDCWD, new_path);
+    }
+
+    int Sysdeps<Linkat>::operator()(int olddirfd, const char *old_path, int newdirfd, const char *new_path, int flags) {
+        (void) flags;
+
+        long ret = syscall4(SYS_LINK, olddirfd, (long) old_path, newdirfd, (long) new_path);
+        if (ret < 0) {
+            return -ret;
+        }
+        return 0;
+    }
+
+    int Sysdeps<Link>::operator()(const char *old_path, const char *new_path) {
+        return sysdep<Linkat>(AT_FDCWD, old_path, AT_FDCWD, new_path, 0);
+    }
+
+    int Sysdeps<Symlinkat>::operator()(const char *target_path, int dirfd, const char *link_path) {
+        long ret = syscall3(SYS_SYMLINK, dirfd, (long) link_path, (long) target_path);
+        if (ret < 0) {
+            return -ret;
+        }
+        return 0;
+    }
+
+    int Sysdeps<Symlink>::operator()(const char *target_path, const char *link_path) {
+        return sysdep<Symlinkat>(target_path, AT_FDCWD, link_path);
+    }
+
+    int Sysdeps<Readlinkat>::operator()(int dirfd, const char *path, void *buf, size_t max_size, ssize_t *length) {
+        long ret = syscall4(SYS_READLINK, dirfd, (long) path, (long) buf, (long) max_size);
+        if (ret < 0) {
+            return -ret;
+        }
+
+        *length = ret;
+        return 0;
+    }
+
+    int Sysdeps<Readlink>::operator()(const char *path, void *buf, size_t max_size, ssize_t *length) {
+        return sysdep<Readlinkat>(AT_FDCWD, path, buf, max_size, length);
     }
 
     int Sysdeps<Unlinkat>::operator()(int fd, const char *path, int flags) {
@@ -394,7 +464,20 @@ namespace mlibc {
     int Sysdeps<ClockGet>::operator()(int clock, time_t *secs, long *nanos) {
         struct timespec ts;
 
-        long ret = syscall2(SYS_GETCLOCK, clock, (uint64_t)&ts);
+        long ret = syscall2(SYS_GETCLOCK, clock, (long) &ts);
+        if (ret < 0) {
+            return -ret;
+        }
+
+        *secs = ts.tv_sec;
+        *nanos = ts.tv_nsec;
+        return 0;
+    }
+
+    int Sysdeps<ClockGetres>::operator()(int clock, time_t *secs, long *nanos) {
+        struct timespec ts;
+
+        long ret = syscall2(SYS_GETCLOCKRES, clock, (long) &ts);
         if (ret < 0) {
             return -ret;
         }
@@ -407,7 +490,64 @@ namespace mlibc {
     int Sysdeps<ClockSet>::operator()(int clock, time_t secs, long nanos) {
         struct timespec ts = { .tv_sec = secs, .tv_nsec = nanos };
 
-        long ret = syscall2(SYS_SETCLOCK, clock, (uint64_t) &ts);
+        long ret = syscall2(SYS_SETCLOCK, clock, (long) &ts);
+        if (ret < 0) {
+            return -ret;
+        }
+        return 0;
+    }
+
+	#ifndef MLIBC_BUILDING_RTLD
+
+	extern "C" void __mlibc_restorer();
+
+    int Sysdeps<Sigaction>::operator()(int signal, const struct sigaction *__restrict act, struct sigaction *__restrict oldact) {
+        if (act != nullptr) {
+            struct sigaction modified = *act;
+            modified.sa_restorer = __mlibc_restorer;
+
+            long ret = syscall3(SYS_SIGACTION, signal, (long) &modified, (long) oldact);
+            if (ret < 0) {
+                return -ret;
+            }
+            return 0;
+        }
+
+        long ret = syscall3(SYS_SIGACTION, signal, 0, (long) oldact);
+        if (ret < 0) {
+            return -ret;
+        }
+        return 0;
+    }
+
+    #endif
+
+    int Sysdeps<Sigaltstack>::operator()(const stack_t *__restrict ss, stack_t *__restrict oldss) {
+        long ret = syscall2(SYS_SIGALTSTACK, (long) ss, (long) oldss);
+        if (ret < 0) {
+            return -ret;
+        }
+        return 0;
+    }
+
+    int Sysdeps<Sigpending>::operator()(sigset_t *set) {
+        long ret = syscall1(SYS_SIGPENDING, (long) set);
+        if (ret < 0) {
+            return -ret;
+        }
+        return 0;
+    }
+
+    int Sysdeps<Sigprocmask>::operator()(int how, const sigset_t *__restrict set, sigset_t *__restrict retrieve) {
+        long ret = syscall3(SYS_SIGPROCMASK, how, (long) set, (long) retrieve);
+        if (ret < 0) {
+            return -ret;
+        }
+        return 0;
+    }
+
+    int Sysdeps<Sigsuspend>::operator()(const sigset_t *mask) {
+        long ret = syscall1(SYS_SIGSUSPEND, (long) mask);
         if (ret < 0) {
             return -ret;
         }
@@ -468,6 +608,17 @@ namespace mlibc {
             return -ret;
         }
         return 0;
+    }
+
+    int Sysdeps<Pause>::operator()(void) {
+        sigset_t mask;
+
+        int ret = 0;
+        if ((ret = sysdep<Sigprocmask>(0, NULL, &mask)) != 0) {
+            return ret;
+        }
+
+        return sysdep<Sigsuspend>(&mask);
     }
 
     int Sysdeps<TcbSet>::operator()(void *pointer) {

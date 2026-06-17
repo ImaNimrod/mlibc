@@ -13,6 +13,7 @@ libc_sources += files(
 	'generic/entry.cpp',
 	'generic/generic.cpp',
 	'generic/piggy.cpp',
+    'signal/signal.S',
     'threading/thread-entry.S',
     'threading/thread.cpp',
 )

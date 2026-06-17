@@ -1,75 +1,63 @@
 #ifndef _ABIBITS_TERMIOS_H
 #define _ABIBITS_TERMIOS_H
 
-#define IGNBRK  0x00001
-#define BRKINT  0x00002
-#define IGNPAR  0x00004
-#define PARMRK  0x00008
-#define INPCK   0x00010
-#define ISTRIP  0x00020
-#define INLCR   0x00040
-#define IGNCR   0x00080
-#define ICRNL   0x00100
-#define IUCLC   0x00200
-#define IXON    0x00400
-#define IXANY   0x00800
-#define IXOFF   0x01000
-#define IMAXBEL 0x02000
-#define IUTF8   0x04000
+#define BRKINT  0x0001
+#define ICRNL   0x0002
+#define IGNBRK  0x0004
+#define IGNCR   0x0008
+#define IGNPAR  0x0010
+#define INLCR   0x0020
+#define INPCK   0x0040
+#define ISTRIP  0x0080
+#define IXANY   0x0100
+#define IXOFF   0x0200
+#define IXON    0x0400
+#define PARMRK  0x0800
 
-#define OPOST   0x00001
-#define OLCUC   0x00002
-#define ONLCR   0x00004
-#define OCRNL   0x00008
-#define ONOCR   0x00010
-#define ONLRET  0x00020
-#define OFILL   0x00040
+#define OPOST   0x0001
+#define ONLCR   0x0002
+#define OCRNL   0x0004
+#define ONOCR   0x0008
+#define ONLRET  0x0010
+#define OFILL   0x0020
+#define OFDEL   0x0040
 
-#define ISIG    0x00001
-#define ICANON  0x00002
-#define ECHO    0x00004
-#define ECHOE   0x00008
-#define ECHOK   0x00010
-#define ECHONL  0x00020
-#define NOFLSH  0x00040
-#define TOSTOP  0x00080
-#define ECHOCTL 0x00100
-#define ECHOPRT 0x00200
-#define ECHOKE  0x00400
-#define IEXTEN  0x00800
+#define CBAUD   0x100f
+#define CLOCAL  0x0010
+#define CREAD   0x0020
+#define CSIZE   0x00c0
+#define CS5     0x0000
+#define CS6     0x0040
+#define CS7     0x0080
+#define CS8     0x00c0
+#define CSTOPB  0x0100
+#define HUPCL   0x0200
+#define PARENB  0x0400
+#define PARODD  0x0800
 
-#define CSIZE  0000060
-#define CS5    0000000
-#define CS6    0000020
-#define CS7    0000040
-#define CS8    0000060
-#define CSTOPB 0000100
-#define CREAD  0000200
-#define PARENB 0000400
-#define PARODD 0001000
-#define HUPCL  0002000
-#define CLOCAL 0004000
-#define CBAUD  0010017
+#define ECHO    0x0001
+#define ECHOE   0x0002
+#define ECHOK   0x0004
+#define ECHONL  0x0008
+#define ICANON  0x0010
+#define IEXTEN  0x0020
+#define ISIG    0x0040
+#define NOFLSH  0x0080
+#define TOSTOP  0x0100
 
-#define NCCS 32
+#define NCCS 16
 
-#define VINTR     0
-#define VQUIT     1
-#define VERASE    2
-#define VKILL     3
-#define VEOF      4
-#define VTIME     5
-#define VMIN      6
-#define VSWTC     7
-#define VSTART    8
-#define VSTOP     9
-#define VSUSP    10
-#define VEOL     11
-#define VREPRINT 12
-#define VDISCARD 13
-#define VWERASE  14
-#define VLNEXT   15
-#define VEOL2    16
+#define VEOF    0
+#define VEOL    1
+#define VERASE  2
+#define VINTR   3
+#define VKILL   4
+#define VMIN    5
+#define VQUIT   6
+#define VSUSP   7
+#define VTIME   8
+#define VSTART  9
+#define VSTOP   10
 
 typedef unsigned char cc_t;
 typedef unsigned int tcflag_t;
@@ -80,7 +68,6 @@ struct termios {
     tcflag_t c_oflag;
     tcflag_t c_cflag;
     tcflag_t c_lflag;
-    cc_t c_line;
     cc_t c_cc[NCCS];
 };
 

@@ -1,14 +1,18 @@
 #ifndef _ABIBITS_WAIT_H
 #define _ABIBITS_WAIT_H
 
-#define WNOHANG 0x01
+#define WNOHANG (1 << 0)
 
-#define WEXITSTATUS(x) (((x) & 0xff00) >> 8)
-#define WTERMSIG(x) ((x) & 0x7f)
-#define WSTOPSIG(x) WEXITSTATUS(x)
-#define WIFEXITED(x) (WTERMSIG(x) == 0)
-#define WIFSIGNALED(x) (((signed char) (((x) & 0x7f) + 1) >> 1) > 0)
-#define WIFSTOPPED(x) (((x) & 0xff) == 0x7f)
+#define WEXITSTATUS(x)  ((x) & 0xff)
+#define WTERMSIG(x)     (((x) & 0x7f00) >> 8)
+#define WSTOPSIG(x)     WEXITSTATUS(x)
+#define WIFEXITED(x)    (WTERMSIG(x) == 0)
+#define WIFSIGNALED(x)  (WTERMSIG(x) != 0)
+#define WIFSTOPPED(x)   (((x) & 0xff) == 0x7f)
 #define WIFCONTINUED(x) ((x) == 0xffff)
+
+/* NOT IMPLEMENTED BUT NEEDED TO COMPILE */
+#define WUNTRACED   0
+#define WCONTINUED  0
 
 #endif /*_ABIBITS_WAIT_H */
