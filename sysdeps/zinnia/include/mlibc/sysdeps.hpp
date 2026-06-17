@@ -133,6 +133,7 @@ struct ZinniaSysdepTags :
 	Sigsuspend,
 	Sigpending,
 	Madvise,
+	PosixMadvise,
 	GetItimer,
 	SetItimer,
 	TimerCreate,
@@ -165,7 +166,10 @@ struct ZinniaSysdepTags :
 	TimerfdCreate,
 	TimerfdSettime,
 	TimerfdGettime,
-	Msync
+	Msync,
+	InetConfigured,
+	Sysconf,
+	Pause
 {};
 
 template<typename Tag>
