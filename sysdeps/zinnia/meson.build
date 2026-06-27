@@ -85,6 +85,7 @@ if not no_headers
 		'include/abi-bits/vm-flags.h',
 		'include/abi-bits/wait.h',
 		'include/abi-bits/sigset_t.h',
+		'include/abi-bits/aio.h',
 		subdir: 'abi-bits',
 		follow_symlinks: true,
 	)
@@ -107,6 +108,9 @@ if not no_headers
 
 	install_headers('include/mntent.h')
 	install_headers('include/ifaddrs.h')
+
+	install_headers('include/netpacket/packet.h', subdir: 'netpacket')
+	install_headers('include/net/bpf.h', subdir: 'net')
 endif
 
 if not headers_only
