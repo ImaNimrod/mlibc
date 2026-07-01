@@ -43,6 +43,7 @@ struct PiggySysdepTags :
     Utimensat,
     Ppoll,
     Poll,
+    Pselect,
     Fsync,
     ReadEntries,
     Chdir,
@@ -86,10 +87,16 @@ struct PiggySysdepTags :
     GetUid,
     GetEuid,
     GetGid,
-    GetEgid
+    GetEgid,
+    GetResuid,
+    GetResgid
 {};
 
 template<typename Tag>
 using Sysdeps = SysdepOf<PiggySysdepTags, Tag>;
+
+struct SysdepTraits {
+    static constexpr bool usesRtNetlink = false;
+};
 
 } // namespace mlibc

@@ -310,7 +310,7 @@ namespace mlibc {
     int Sysdeps<Ppoll>::operator()(struct pollfd* fds, nfds_t count, const struct timespec* timeout, const sigset_t* sigmask, int* num_events) {
         (void) sigmask;
 
-        long ret = syscall3(SYS_POLL, (long) fds, count, (long) timeout);
+        long ret = syscall4(SYS_POLL, (long) fds, count, (long) timeout, (long) sigmask);
         if (ret < 0) {
             return -ret;
         }
@@ -327,6 +327,77 @@ namespace mlibc {
             return sysdep<Ppoll>(fds, count, &ts, NULL, num_events);
         }
     }
+
+#ifndef MLIBC_BUILDING_RTLD
+    int Sysdeps<Pselect>::operator()(int num_fds, fd_set *read_set, fd_set *write_set, fd_set *except_set, const struct timespec *timeout, const sigset_t *sigmask, int *num_events) {
+        pollfd* fds = (pollfd*) malloc(num_fds * sizeof(pollfd));
+        if (fds == NULL) {
+            return ENOMEM;
+        }
+
+        int actual_count = 0;
+
+        for(int fd = 0; fd < num_fds; ++fd) {
+            short events = 0;
+            if (read_set && FD_ISSET(fd, read_set)) {
+                events |= POLLIN;
+            }
+
+            if (write_set && FD_ISSET(fd, write_set)) {
+                events |= POLLOUT;
+            }
+
+            if (except_set && FD_ISSET(fd, except_set)) {
+                events |= POLLPRI;
+            }
+
+            if (events) {
+                fds[actual_count].fd = fd;
+                fds[actual_count].events = events;
+                fds[actual_count].revents = 0;
+                actual_count++;
+            }
+        }
+
+        int num;
+        int err = sysdep<Ppoll>(fds, actual_count, timeout, sigmask, &num);
+        if (err) {
+            free(fds);
+            return err;
+        }
+
+#define READ_SET_POLLSTUFF (POLLIN | POLLHUP | POLLERR)
+#define WRITE_SET_POLLSTUFF (POLLOUT | POLLERR)
+#define EXCEPT_SET_POLLSTUFF (POLLPRI)
+
+        int return_count = 0;
+        for (int fd = 0; fd < actual_count; fd++) {
+            int events = fds[fd].events;
+            if ((events & POLLIN) && (fds[fd].revents & READ_SET_POLLSTUFF) == 0) {
+                FD_CLR(fds[fd].fd, read_set);
+                events &= ~POLLIN;
+            }
+
+            if ((events & POLLOUT) && (fds[fd].revents & WRITE_SET_POLLSTUFF) == 0) {
+                FD_CLR(fds[fd].fd, write_set);
+                events &= ~POLLOUT;
+            }
+
+            if ((events & POLLPRI) && (fds[fd].revents & EXCEPT_SET_POLLSTUFF) == 0) {
+                FD_CLR(fds[fd].fd, except_set);
+                events &= ~POLLPRI;
+            }
+
+            if (events) {
+                return_count++;
+            }
+        }
+
+        *num_events = return_count;
+        free(fds);
+        return 0;
+    }
+#endif /* MLIBC_BUILDING_RTLD */
 
     int Sysdeps<Fsync>::operator()(int fd) {
         long ret = syscall1(SYS_SYNC, fd);
@@ -497,8 +568,7 @@ namespace mlibc {
         return 0;
     }
 
-	#ifndef MLIBC_BUILDING_RTLD
-
+#ifndef MLIBC_BUILDING_RTLD
 	extern "C" void __mlibc_restorer();
 
     int Sysdeps<Sigaction>::operator()(int signal, const struct sigaction *__restrict act, struct sigaction *__restrict oldact) {
@@ -519,8 +589,7 @@ namespace mlibc {
         }
         return 0;
     }
-
-    #endif
+#endif
 
     int Sysdeps<Sigaltstack>::operator()(const stack_t *__restrict ss, stack_t *__restrict oldss) {
         long ret = syscall2(SYS_SIGALTSTACK, (long) ss, (long) oldss);
@@ -555,7 +624,6 @@ namespace mlibc {
     }
 
 #ifndef MLIBC_BUILDING_RTLD
-
     extern "C" void __mlibc_thread_entry();
 
     int Sysdeps<Clone>::operator()(void *tcb, pid_t *pid_out, void *stack) {
@@ -695,6 +763,16 @@ namespace mlibc {
     }
 
     gid_t Sysdeps<GetEgid>::operator()(void) {
+        return 0;
+    }
+
+    int Sysdeps<GetResuid>::operator()(uid_t *ruid, uid_t *euid, uid_t *suid) {
+        *ruid = *euid = *suid = 0;
+        return 0;
+    }
+
+    int Sysdeps<GetResgid>::operator()(gid_t *rgid, gid_t *egid, gid_t *sgid) {
+        *rgid = *egid = *sgid = 0;
         return 0;
     }
 } // namespace mlibc

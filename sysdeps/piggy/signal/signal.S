@@ -1,7 +1,7 @@
 .global __mlibc_restorer
 
 __mlibc_restorer:
-    mov $46, %rax
+    mov $51, %rax
     syscall
     ud2
 

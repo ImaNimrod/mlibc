@@ -54,7 +54,7 @@ typedef void (*__sighandler)(int);
 #define SIGRTMIN    33
 #define SIGRTMAX    64
 
-#define NSIG SIGRTMAX + 1
+#define NSIG 64 + 1
 #define _NSIG NSIG
 
 #define SI_ASYNCNL  (-60)
