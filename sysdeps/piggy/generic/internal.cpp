@@ -34,9 +34,7 @@ namespace mlibc {
     }
 
     int Sysdeps<FutexWait>::operator()(int *pointer, int expected, const struct timespec* time) {
-        (void) time;
-
-        long ret = syscall3(SYS_FUTEX, (long) pointer, FUTEX_WAIT, expected);
+        long ret = syscall4(SYS_FUTEX, (long) pointer, FUTEX_WAIT, expected, (long) time);
         if (ret < 0) {
             return -ret;
         }
