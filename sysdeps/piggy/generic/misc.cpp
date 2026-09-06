@@ -1,6 +1,7 @@
 #include <mlibc/all-sysdeps.hpp>
 
 #include <piggy/syscall.h>
+#include <piggy/sysinfo.h>
 
 #include <string.h>
 
@@ -31,10 +32,21 @@ namespace mlibc {
     }
 
     int Sysdeps<Uname>::operator()(struct utsname* buf) {
-        long ret = syscall1(SYS_UNAME, (long) buf);
+        struct sysinfo info;
+
+        long ret = syscall1(SYS_SYSINFO, (long) &info);
         if (ret < 0) {
             return -ret;
         }
+
+        strncpy(buf->sysname, info.sysname, sizeof(buf->sysname));
+        buf->sysname[sizeof(buf->sysname) - 1] = '\0';
+        strncpy(buf->nodename, info.hostname, sizeof(buf->nodename));
+        buf->nodename[sizeof(buf->nodename) - 1] = '\0';
+        strncpy(buf->release, info.release, sizeof(buf->release));
+        buf->release[sizeof(buf->release) - 1] = '\0';
+        strncpy(buf->version, info.version, sizeof(buf->version));
+        buf->version[sizeof(buf->version) - 1] = '\0';
 
         return 0;
     }

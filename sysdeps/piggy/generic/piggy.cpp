@@ -4,6 +4,7 @@
 #include <piggy/powerctl.h>
 #include <piggy/procctl.h>
 #include <piggy/syscall.h>
+#include <piggy/sysinfo.h>
 
 #ifndef MLIBC_BUILDING_RTLD
 
@@ -57,6 +58,16 @@ int procctl(pid_t pid, int op, void* buf, size_t* len) {
     }
 
     *len = ret;
+    return 0;
+}
+
+int sysinfo(struct sysinfo* buf) {
+    long ret = syscall1(SYS_SYSINFO, (long) buf);
+    if (ret < 0) {
+        errno = -ret;
+        return -1;
+    }
+
     return 0;
 }
 
